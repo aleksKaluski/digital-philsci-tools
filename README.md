@@ -12,6 +12,7 @@ This code has been developed for the purpose of my PhD dissertation titled "Scal
 
 If you use the tools for your own research, I would appreciate a citation of the dissertation:
 
+```bibtex
 @phdthesis{rorot_scalefree_2025,
   title = {Scale-{{Free Communication}}? {{An}} Investigation of the Use of the Concept "Communication" in Biology and Cognitive Sciences},
   author = {Rorot, Wiktor},
@@ -21,6 +22,7 @@ If you use the tools for your own research, I would appreciate a citation of the
   langid = {english},
   school = {University of Warsaw}
 }
+```
 
 The development of these tools was funded by the National Science Center (Poland) as part of Preludium grant "Investigation of the use of the concept “communication” in biology and cognitive sciences" (2022/45/N/HS1/02434), awarded to Wiktor Rorot (supervisor: Marcin Miłkowski) (project begun in February 2023, planned conclusion: July 2026).
 
