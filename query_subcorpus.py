@@ -5,6 +5,7 @@ This script provides a flexible interface for querying subcorpus collections wit
 - Configurable database and collection names
 - Query input from text file (one query per line)
 - Support for both sentence and paragraph level search
+- Reciprocal Rank Fusion (RRF) for aggregating results across multiple queries
 - Extensible result processing and output formats
 
 Usage:
@@ -22,13 +23,25 @@ Usage:
         --queries queries.txt \\
         --limit 100 \\
         --output results.json
+    
+    # Use Reciprocal Rank Fusion to aggregate results across queries
+    python query_subcorpus.py \\
+        --db-name my_subcorpus \\
+        --collection sentences \\
+        --queries queries.txt \\
+        --use-rrf \\
+        --rrf-output-size 1000 \\
+        --rrf-k 60 \\
+        --output results.json
 """
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -36,12 +49,33 @@ from pymilvus import connections, MilvusClient, db
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
+
+class Tee:
+    """Redirect stdout to both terminal and log file."""
+    def __init__(self, log_file):
+        self.terminal = sys.stdout
+        self.log = open(log_file, 'w', encoding='utf-8')
+    
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+    
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+    
+    def close(self):
+        self.log.close()
+
 # Default configuration
 DEFAULT_MILVUS_HOST = "localhost"
 DEFAULT_MILVUS_PORT = 19530
 DEFAULT_MODEL = "multi-qa-MiniLM-L6-cos-v1"
 DEFAULT_LIMIT = 1000
 DEFAULT_METRIC_TYPE = "COSINE"
+DEFAULT_RRF_K = 60
+DEFAULT_RRF_OUTPUT_SIZE = 1000
 
 
 class SubcorpusQueryClient:
@@ -247,6 +281,76 @@ class SubcorpusQueryClient:
         print(f"Formatted {len(df)} results")
         
         return df
+    
+    def reciprocal_rank_fusion(self,
+                              results: List[List[Dict]],
+                              output_size: int = DEFAULT_RRF_OUTPUT_SIZE,
+                              k: int = DEFAULT_RRF_K) -> pd.DataFrame:
+        """
+        Aggregate multiple query results using Reciprocal Rank Fusion.
+        
+        RRF formula: RRF_score(d) = Σ(1 / (k + rank_i(d)))
+        where k is a constant (typically 60) and rank_i(d) is the rank of document d in query i.
+        
+        Args:
+            results: List of search results from multiple queries
+            output_size: Number of top results to return
+            k: RRF constant (default 60)
+            
+        Returns:
+            DataFrame with aggregated results sorted by RRF score
+        """
+        print(f"Applying Reciprocal Rank Fusion (k={k}, output_size={output_size})...")
+        
+        rrf_scores = defaultdict(float)
+        corpus_data = {}  # Store entity data for each corpusid
+        
+        for query_idx, query_results in enumerate(results):
+            for rank, result in enumerate(query_results, start=1):
+                entity = result.get('entity', {})
+                corpus_id = entity.get('corpusid')
+                
+                if corpus_id is not None:
+                    # RRF formula: 1 / (k + rank)
+                    rrf_scores[corpus_id] += 1.0 / (k + rank)
+                    
+                    # Store entity data (keep first occurrence)
+                    if corpus_id not in corpus_data:
+                        corpus_data[corpus_id] = entity
+        
+        # Sort by RRF score (descending) and take top N
+        sorted_results = sorted(
+            [(corpus_id, score) for corpus_id, score in rrf_scores.items()],
+            key=lambda x: x[1],
+            reverse=True
+        )[:output_size]
+        
+        print(f"Selected top {len(sorted_results)} documents from {len(rrf_scores)} unique candidates")
+        
+        # Format results as DataFrame
+        formatted_results = []
+        for rank, (corpus_id, rrf_score) in enumerate(sorted_results, start=1):
+            entity = corpus_data[corpus_id]
+            
+            formatted_result = {
+                'rank': rank,
+                'rrf_score': rrf_score,
+                'corpusid': corpus_id,
+            }
+            
+            # Add all entity fields, converting protobuf objects
+            for key, value in entity.items():
+                if key not in formatted_result:
+                    if hasattr(value, '__class__') and 'google' in value.__class__.__module__:
+                        formatted_result[key] = [int(x) for x in value]
+                    elif hasattr(value, '__iter__') and not isinstance(value, (str, dict, list)):
+                        formatted_result[key] = list(value)
+                    else:
+                        formatted_result[key] = value
+            
+            formatted_results.append(formatted_result)
+        
+        return pd.DataFrame(formatted_results)
     
     def close(self):
         """Close connections."""
@@ -473,6 +577,26 @@ Examples:
         help='Skip printing results summary'
     )
     
+    parser.add_argument(
+        '--use-rrf',
+        action='store_true',
+        help='Use Reciprocal Rank Fusion to aggregate results across queries'
+    )
+    
+    parser.add_argument(
+        '--rrf-k',
+        type=int,
+        default=DEFAULT_RRF_K,
+        help=f'RRF constant k (default: {DEFAULT_RRF_K})'
+    )
+    
+    parser.add_argument(
+        '--rrf-output-size',
+        type=int,
+        default=DEFAULT_RRF_OUTPUT_SIZE,
+        help=f'Number of top results to return when using RRF (default: {DEFAULT_RRF_OUTPUT_SIZE})'
+    )
+    
     args = parser.parse_args()
     
     print("=" * 70)
@@ -521,12 +645,19 @@ Examples:
             output_fields=args.output_fields
         )
         
-        # Format results
-        df = client.format_results(
-            queries=queries,
-            results=results,
-            collection_name=args.collection
-        )
+        # Format results (with or without RRF)
+        if args.use_rrf:
+            df = client.reciprocal_rank_fusion(
+                results=results,
+                output_size=args.rrf_output_size,
+                k=args.rrf_k
+            )
+        else:
+            df = client.format_results(
+                queries=queries,
+                results=results,
+                collection_name=args.collection
+            )
         
         # Save results
         save_results(df, args.output)
@@ -552,9 +683,21 @@ Examples:
 
 
 if __name__ == '__main__':
-    from datetime import datetime
-    exit_code = main()
-    print(f"\n{'='*60}")
-    print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*60}")
+    # Setup logging to file
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = f'query_subcorpus_{timestamp}.log'
+    tee = Tee(log_file)
+    sys.stdout = tee
+    
+    print(f"Logging output to: {log_file}\n")
+    
+    try:
+        exit_code = main()
+        print(f"\n{'='*60}")
+        print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+    finally:
+        sys.stdout = tee.terminal
+        tee.close()
+    
     exit(exit_code)

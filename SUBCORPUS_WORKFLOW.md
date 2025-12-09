@@ -65,8 +65,10 @@ The workflow is optimized for the S2ORC corpus but can be adapted to other scien
 # 1. Build subcorpus from seed papers (using query_milvus_rrf.py)
 python query_milvus_rrf.py \
     --queries seed_papers.txt \
-    --output subcorpus_20251112.pkl \
-    --top-k 10000
+    --embeddings seed_embeddings.pkl \
+    --output-prefix data/subcorpus \
+    --top-k 10000 \
+    --output-size 1000
 
 # 2. Create sentence/paragraph Milvus databases
 python build_subcorpus_milvus.py \
@@ -131,7 +133,7 @@ Use Reciprocal Rank Fusion (RRF) to identify papers semantically related to your
 ```bash
 python query_milvus_rrf.py \
     --queries seed_papers.txt \
-    --output subcorpus_20251112.pkl \
+    --output-prefix data/subcorpus \
     --top-k 10000 \
     --rrf-k 60
 ```
@@ -142,10 +144,12 @@ python query_milvus_rrf.py \
 - `embeddings`: Full-paper embeddings (if available)
 - `metadata`: Additional information
 
-**Key Parameters:**
+**Key Parameters:**`
+- `--output-size`: Number of results to output (default: 1000)
 - `--top-k`: Number of papers to retrieve per query (default: 10000)
 - `--rrf-k`: RRF constant (default: 60, lower = more emphasis on top ranks)
 - `--queries`: File with queries (one per line)
+- `--embeddings-file`: File with full paper embeddings for the queries, can downloaded from S2 API with `s2_api_requests.py`
 
 ### Step 3: Create Milvus Database
 
@@ -156,8 +160,8 @@ Build searchable vector databases at sentence and paragraph level.
 ```bash
 python build_subcorpus_milvus.py \
     --subcorpus subcorpus_20251112.pkl \
-    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc-json-standoff/ \
-    --db-name compositionality_subcorpus \
+    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/ \
+    --db-name subcorpus \
     --sentence-collection sentences \
     --paragraph-collection paragraphs \
     --paragraph-size 10 \
@@ -264,6 +268,7 @@ Neural networks learn compositional representations through hierarchical process
 - ✅ **Batch encoding**: Efficient encoding of multiple queries
 - ✅ **Auto-release**: Frees Milvus resources after querying
 - ✅ **Multiple formats**: JSON, CSV, Parquet output
+- ✅ **Reciprocal Rank Fusion (RRF)**: Aggregate results across queries for improved ranking
 - ✅ **Summary statistics**: Automatic result analysis
 - ✅ **Custom fields**: Specify which fields to retrieve
 
@@ -277,8 +282,56 @@ Neural networks learn compositional representations through hierarchical process
 - `--metric-type`: Distance metric (COSINE, L2, IP)
 - `--output-fields`: Fields to retrieve (default: corpusid, sentence_number, sentence_indices)
 - `--no-summary`: Skip printing summary statistics
+- `--use-rrf`: Enable Reciprocal Rank Fusion to aggregate results across queries
+- `--rrf-k`: RRF constant k (default: 60, lower values emphasize top-ranked results more)
+- `--rrf-output-size`: Number of top results to return when using RRF (default: 1000)
+
+**Using Reciprocal Rank Fusion (RRF):**
+
+When you have multiple related queries and want to find documents that are relevant across all of them, use RRF mode:
+
+```bash
+python query_subcorpus.py \
+    --db-name compositionality_subcorpus \
+    --collection sentences \
+    --queries research_queries.txt \
+    --output query_results_rrf.json \
+    --use-rrf \
+    --rrf-output-size 1000 \
+    --rrf-k 60
+```
+
+**RRF Formula:** `RRF_score(d) = Σ(1 / (k + rank_i(d)))`
+
+Where:
+- `d` is a document (sentence/paragraph)
+- `k` is the RRF constant (default: 60)
+- `rank_i(d)` is the rank of document `d` in query `i`
+
+**RRF Benefits:**
+- ✅ Combines rankings from multiple queries robustly
+- ✅ Weights higher-ranked items more heavily
+- ✅ Resistant to outliers and varying result set sizes
+- ✅ Returns a single unified ranking across all queries
+
+**RRF Output Format:**
+```json
+[
+  {
+    "rank": 1,
+    "rrf_score": 0.0342,
+    "corpusid": 12345678,
+    "sentence_number": 42,
+    "sentence_indices": [1523, 1687]
+  },
+  ...
+]
+```
+
+Note: RRF mode aggregates results, so query-specific information (query_idx, query text) is not included in the output.
 
 **Recent Updates:**
+- ✅ Added Reciprocal Rank Fusion (RRF) mode for multi-query aggregation
 - ✅ Added automatic collection release to free memory
 - ✅ Smart loading: tracks if collection was already loaded
 - ✅ Error handling with try-finally blocks
@@ -369,19 +422,77 @@ Create interactive 3D visualizations of the subcorpus and query results.
 
 **Script:** `visualize_subcorpus.py`
 
+**Basic usage:**
 ```bash
 python visualize_subcorpus.py \
     --subcorpus subcorpus_20251112.pkl \
-    --output-dir visualizations/ \
-    --methods umap tsne \
-    --n-components 3
+    --seed-embeddings seed_embeddings.pkl \
+    --output-dir visualizations/
+```
+
+**With random sample comparison:**
+```bash
+# First, generate a random sample from the full corpus
+python sample_random_corpus.py \
+    --embeddings-file data/full_corpus_embeddings.pkl \
+    --sample-size 10000 \
+    --output data/random_sample_10000.pkl
+
+# Then visualize with comparison
+python visualize_subcorpus.py \
+    --subcorpus subcorpus_20251112.pkl \
+    --seed-embeddings seed_embeddings.pkl \
+    --random-sample data/random_sample_10000.pkl \
+    --output-dir visualizations/
 ```
 
 **Visualizations created:**
+- UMAP 2D projection (static PNG)
 - UMAP 3D projection (interactive HTML)
+- t-SNE 2D projection (static PNG)
 - t-SNE 3D projection (interactive HTML)
-- Corpus comparison (seed vs random vs subcorpus)
-- RRF score distributions
+- RRF score distributions (static PNG)
+- Density heatmap (static PNG)
+- Cluster analysis (static PNG + dendrogram)
+- **Comparison plots** (when `--random-sample` provided):
+  - 3D UMAP: Subcorpus vs Random Sample (interactive HTML)
+  - 3D t-SNE: Subcorpus vs Random Sample (interactive HTML)
+  - Interactive RRF score slider to filter subcorpus points
+  - Percentage display showing visible datapoints
+
+**Random Sample Comparison Feature:**
+
+The `--random-sample` option enables powerful comparison visualizations that help validate your subcorpus selection:
+
+**Purpose:**
+- Assess whether your RRF-based subcorpus forms a **distinct cluster** (good topic coherence)
+- Verify if subcorpus papers differ from **random corpus baseline** (validates selection method)
+- Identify potential biases or unexpected patterns in corpus sampling
+
+**How it works:**
+1. Generate random sample using `sample_random_corpus.py` (same embedding space as subcorpus)
+2. Combine subcorpus and random sample embeddings
+3. Compute UMAP/t-SNE projection on combined dataset
+4. Visualize with color coding:
+   - **Green**: Seed papers (your starting queries)
+   - **Blue**: Subcorpus papers (RRF-selected)
+   - **Gray**: Random sample (baseline comparison)
+5. Use RRF score slider to filter subcorpus by relevance threshold
+
+**Interactive features:**
+- **RRF Score Slider**: Dynamically filter subcorpus points by RRF score
+  - Shows only papers above threshold
+  - Displays percentage of visible subcorpus points
+  - Helps identify core vs peripheral papers
+- **Fixed 3D axes**: Prevents disorienting camera jumps when filtering
+- **Hover info**: Paper IDs and scores on mouse hover
+- **Legend**: Toggle visibility of each group
+
+**Interpretation:**
+- **Distinct clusters**: Subcorpus forms separate region → good topic coherence
+- **Mixed distribution**: Subcorpus overlaps with random → broad/general selection
+- **Core concentration**: High RRF scores cluster together → strong consensus
+- **Scattered high scores**: Diverse topics captured by queries
 
 **Key Features:**
 - ✅ **Interactive**: Plotly-based 3D scatter plots
@@ -389,6 +500,21 @@ python visualize_subcorpus.py \
 - ✅ **UI controls**: Buttons, sliders for data filtering
 - ✅ **Proper spacing**: No overlapping UI elements
 - ✅ **Modern syntax**: Updated Plotly axis title fonts
+- ✅ **Comparison mode**: Visualize against random corpus baseline
+- ✅ **Metadata integration**: Paper titles, years, journals from MongoDB
+
+**Key Parameters:**
+- `--subcorpus`: Pickle file from RRF query (required)
+- `--seed-embeddings`: Pickle file with seed paper embeddings (required)
+- `--random-sample`: Pickle file with random corpus sample (optional, enables comparison)
+- `--output-dir`: Directory for output visualizations (default: `visualizations/`)
+- `--n-clusters`: Number of clusters for K-Means analysis (default: 10)
+- `--umap-neighbors`: UMAP n_neighbors parameter (default: 15)
+- `--tsne-perplexity`: t-SNE perplexity parameter (default: 30)
+- `--fetch-metadata`: Fetch paper metadata from MongoDB (default: True)
+- `--mongo-host`: MongoDB host address (default: localhost)
+- `--mongo-port`: MongoDB port (default: 27017)
+- `--font-family`: Font family for plots (default: Noto Sans)
 
 **Recent Updates:**
 - ✅ Fixed font rendering (Google Fonts CDN integration)
@@ -396,6 +522,8 @@ python visualize_subcorpus.py \
 - ✅ Added slider suffix for percentage display
 - ✅ Fixed RRF slider visibility logic
 - ✅ Updated deprecated Plotly syntax
+- ✅ Added random sample comparison visualization
+- ✅ Interactive RRF score filtering with continuous slider
 
 ---
 
@@ -550,12 +678,55 @@ docker run -d -p 27017:27017 --name mongodb mongo:latest
 
 ### Supporting Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `import_papers_mongo.py` | Import S2ORC metadata to MongoDB |
-| `sample_random_corpus.py` | Create random paper samples |
-| `get_paper_by_line.py` | Retrieve paper by line number |
-| `analyze_query_results.py` | Statistical analysis of results |
+| Script | Purpose | Key Use Case |
+|--------|---------|--------------|
+| `import_papers_mongo.py` | Import S2ORC metadata to MongoDB | Required for metadata retrieval |
+| `sample_random_corpus.py` | Create random paper samples | Generate baseline for subcorpus comparison |
+| `get_paper_by_line.py` | Retrieve paper by line number | Direct paper access for debugging |
+| `analyze_query_results.py` | Statistical analysis of results | Results post-processing |
+
+**`sample_random_corpus.py` - Random Corpus Sampling:**
+
+Creates a random sample from the full corpus for comparison with RRF-selected subcorpus:
+
+```bash
+# Sample 10,000 random papers from full corpus
+python sample_random_corpus.py \
+    --sample-size 10000 \
+    --output data/random_sample_10000.pkl \
+    --db-name s2orcFullPaperEmbeddings \
+    --collection paperEmbeddings
+```
+
+**Purpose:**
+- Provides a **baseline** for evaluating subcorpus quality
+- Enables statistical comparison between RRF-selected and random papers
+- Validates that subcorpus selection creates meaningful clusters
+
+**Output format** (pickle file):
+```python
+{
+    'corpus_ids': [list of S2ORC corpus IDs],
+    'embeddings': {corpus_id: embedding_vector},
+    'embedding_dim': 768,
+    'sample_size': 10000,
+    'timestamp': '2025-12-09 10:30:00'
+}
+```
+
+**Parameters:**
+- `--sample-size`: Number of papers to sample (default: 5000)
+- `--output`: Output pickle file path
+- `--db-name`: Milvus database name (default: s2orcFullPaperEmbeddings)
+- `--collection`: Collection name (default: paperEmbeddings)
+- `--milvus-host`: Milvus server host (default: localhost)
+- `--milvus-port`: Milvus server port (default: 19530)
+- `--seed`: Random seed for reproducibility (optional)
+
+**Recommended sample sizes:**
+- Small subcorpus (<1000): 2,000-5,000 random papers
+- Medium subcorpus (1000-5000): 5,000-10,000 random papers
+- Large subcorpus (>5000): 10,000-20,000 random papers
 
 ---
 

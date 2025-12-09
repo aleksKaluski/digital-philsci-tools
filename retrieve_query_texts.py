@@ -40,6 +40,7 @@ Usage:
 import argparse
 import json
 import gzip
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -48,6 +49,25 @@ from collections import defaultdict
 import pandas as pd
 from pymongo import MongoClient
 from tqdm import tqdm
+
+
+class Tee:
+    """Redirect stdout to both terminal and log file."""
+    def __init__(self, log_file):
+        self.terminal = sys.stdout
+        self.log = open(log_file, 'w', encoding='utf-8')
+    
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+    
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+    
+    def close(self):
+        self.log.close()
 
 # Try to import indexed_gzip for faster random access
 try:
@@ -909,8 +929,21 @@ Examples:
 
 
 if __name__ == '__main__':
-    exit_code = main()
-    print(f"\n{'='*60}")
-    print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*60}")
+    # Setup logging to file
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = f'retrieve_query_texts_{timestamp}.log'
+    tee = Tee(log_file)
+    sys.stdout = tee
+    
+    print(f"Logging output to: {log_file}\n")
+    
+    try:
+        exit_code = main()
+        print(f"\n{'='*60}")
+        print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+    finally:
+        sys.stdout = tee.terminal
+        tee.close()
+    
     exit(exit_code)

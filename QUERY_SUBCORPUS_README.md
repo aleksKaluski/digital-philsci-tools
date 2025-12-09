@@ -9,6 +9,7 @@
 - **Flexible input**: Read queries from text file (one per line)
 - **Configurable**: Specify database and collection names as parameters
 - **Multiple output formats**: JSON, CSV, or Parquet
+- **Reciprocal Rank Fusion (RRF)**: Aggregate results across multiple queries for improved ranking
 - **Extensible**: Clean class-based architecture for easy customization
 - **Batch processing**: Efficient encoding and querying
 - **Rich results**: Formatted output with rankings and distance scores
@@ -65,6 +66,9 @@ python query_subcorpus.py \
 - `--no-gpu`: Disable GPU for encoding
 - `--output-fields`: Custom fields to retrieve (default: `corpus_id`, `sentence_idx`, `text`)
 - `--no-summary`: Skip printing results summary
+- `--use-rrf`: Use Reciprocal Rank Fusion to aggregate results across queries
+- `--rrf-k`: RRF constant k (default: 60)
+- `--rrf-output-size`: Number of top results to return when using RRF (default: 1000)
 
 ## Examples
 
@@ -123,7 +127,40 @@ python query_subcorpus.py \
     --output results.json
 ```
 
+### Example 6: Reciprocal Rank Fusion (RRF) Mode
+
+Use RRF to aggregate results across multiple queries, finding documents that are relevant across all queries:
+
+```bash
+python query_subcorpus.py \
+    --db-name my_subcorpus \
+    --collection sentences \
+    --queries queries.txt \
+    --use-rrf \
+    --rrf-output-size 1000 \
+    --rrf-k 60 \
+    --output results_rrf.json
+```
+
+**What is RRF?**
+
+Reciprocal Rank Fusion (RRF) is a state-of-the-art rank aggregation method that combines rankings from multiple queries. Instead of getting separate results for each query, RRF produces a single unified ranking of documents that are relevant across all queries.
+
+**RRF Formula:** `RRF_score(d) = Σ(1 / (k + rank_i(d)))`
+
+Where:
+- `d` is a document
+- `k` is the RRF constant (default: 60, lower values emphasize top-ranked results more)
+- `rank_i(d)` is the rank of document `d` in query `i`
+
+**When to use RRF:**
+- You have multiple related queries exploring different aspects of a topic
+- You want to find documents relevant across all queries (consensus ranking)
+- You need a single aggregated result set rather than per-query results
+
 ## Output Format
+
+### Standard Mode Output
 
 Results are saved as a table with the following columns:
 
@@ -135,7 +172,7 @@ Results are saved as a table with the following columns:
 - `collection`: Name of the queried collection
 - Additional fields from the collection (e.g., `sentence_idx`, `text`, `paragraph_idx`)
 
-### JSON Output Example
+### JSON Output Example (Standard Mode)
 
 ```json
 [
@@ -148,6 +185,39 @@ Results are saved as a table with the following columns:
     "collection": "sentences",
     "sentence_idx": 42,
     "text": "Compositionality states that the meaning of complex expressions..."
+  },
+  ...
+]
+```
+
+### RRF Mode Output
+
+When using `--use-rrf`, the output format changes to show aggregated rankings:
+
+- `rank`: Overall rank in the aggregated results (1-based)
+- `rrf_score`: Reciprocal Rank Fusion score (higher = more relevant across queries)
+- `corpusid`: S2ORC corpus ID of the paper
+- Additional fields from the collection (e.g., `sentence_number`, `sentence_indices`)
+
+Note: Query-specific information (query_idx, query text) is not included in RRF output since results are aggregated.
+
+### JSON Output Example (RRF Mode)
+
+```json
+[
+  {
+    "rank": 1,
+    "rrf_score": 0.0342,
+    "corpusid": 12345678,
+    "sentence_number": 42,
+    "sentence_indices": [1523, 1687]
+  },
+  {
+    "rank": 2,
+    "rrf_score": 0.0298,
+    "corpusid": 87654321,
+    "sentence_number": 15,
+    "sentence_indices": [892, 1056]
   },
   ...
 ]

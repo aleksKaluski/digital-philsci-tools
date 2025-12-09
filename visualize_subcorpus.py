@@ -9,14 +9,29 @@ created by RRF-based querying, including:
 - Hierarchical clustering
 - Score distribution analysis
 - Interactive plots with Plotly
+- Comparison with random corpus sample for validation
+
+The comparison feature allows you to visualize your subcorpus alongside a random 
+sample from the full corpus, helping to assess whether your RRF-based selection 
+creates a distinct cluster or mirrors the overall corpus distribution.
 
 Usage:
-    python visualize_subcorpus.py --subcorpus subcorpus_20251105_164654.pkl --seed-embeddings data/paper_embeddings.pkl
+    # Basic visualization
+    python visualize_subcorpus.py \
+        --subcorpus subcorpus_20251105.pkl \
+        --seed-embeddings data/paper_embeddings.pkl
+    
+    # With random sample comparison
+    python visualize_subcorpus.py \
+        --subcorpus subcorpus_20251105.pkl \
+        --seed-embeddings data/paper_embeddings.pkl \
+        --random-sample data/random_sample_10000.pkl
 """
 
 import argparse
 import pickle
 import json
+import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -24,6 +39,25 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Dict, List, Tuple, Optional
 from tqdm import tqdm
+
+
+class Tee:
+    """Redirect stdout to both terminal and log file."""
+    def __init__(self, log_file):
+        self.terminal = sys.stdout
+        self.log = open(log_file, 'w', encoding='utf-8')
+    
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+    
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+    
+    def close(self):
+        self.log.close()
 
 # MongoDB for metadata
 from pymongo import MongoClient, errors
@@ -307,7 +341,11 @@ class SubcorpusVisualizer:
     
     def save_plotly_html(self, fig, output_file: Path):
         """
-        Save Plotly figure to HTML with Google Fonts link for proper font rendering.
+        Save Plotly figure to HTML with Google Fonts CDN link for proper font rendering.
+        
+        This ensures consistent font display across all devices by embedding a Google Fonts
+        link directly in the HTML. The font specified in self.font_family is loaded from
+        Google Fonts CDN if available.
         
         Args:
             fig: Plotly figure object
@@ -316,15 +354,33 @@ class SubcorpusVisualizer:
         # Generate HTML
         html_string = fig.to_html(include_plotlyjs='cdn')
         
-        # Insert Google Fonts link for Noto Sans into the <head> section
-        google_fonts_link = '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">'
+        # Map common font names to Google Fonts URLs
+        font_url_map = {
+            'Noto Sans': 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap',
+            'Roboto': 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap',
+            'Open Sans': 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap',
+            'Lato': 'https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap',
+            'Montserrat': 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap',
+            'Source Sans Pro': 'https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;700&display=swap',
+            'Poppins': 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap',
+        }
         
-        # Find the </head> tag and insert the font link before it
-        html_string = html_string.replace('</head>', f'    {google_fonts_link}\n</head>')
+        # Get Google Fonts URL for the current font family
+        font_url = font_url_map.get(self.font_family)
+        
+        if font_url:
+            # Insert Google Fonts link into the <head> section
+            google_fonts_link = f'<link href="{font_url}" rel="stylesheet">'
+            html_string = html_string.replace('</head>', f'    {google_fonts_link}\n</head>')
         
         # Write to file
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_string)
+        
+        if font_url:
+            print(f"    ✓ Embedded Google Fonts CDN link for '{self.font_family}'")
+        else:
+            print(f"    ⚠ Font '{self.font_family}' not in Google Fonts map, using system font")
     
     def compute_umap(self, n_neighbors: int = 15, min_dist: float = 0.1, 
                      metric: str = 'cosine', random_state: int = 42):
@@ -1987,8 +2043,22 @@ def main():
 
 if __name__ == '__main__':
     from datetime import datetime
-    exit_code = main()
-    print(f"\n{'='*60}")
-    print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*60}")
+    
+    # Setup logging to file
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = f'visualize_subcorpus_{timestamp}.log'
+    tee = Tee(log_file)
+    sys.stdout = tee
+    
+    print(f"Logging output to: {log_file}\n")
+    
+    try:
+        exit_code = main()
+        print(f"\n{'='*60}")
+        print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+    finally:
+        sys.stdout = tee.terminal
+        tee.close()
+    
     exit(exit_code)
