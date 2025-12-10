@@ -228,7 +228,11 @@ class SubcorpusQueryClient:
         
         # Default output fields if not specified
         if output_fields is None:
-            output_fields = ["corpusid", "sentence_number", "sentence_indices"]
+            # Use appropriate fields based on collection type
+            if 'paragraph' in collection_name.lower():
+                output_fields = ["corpusid", "paragraph_number", "paragraph_indices"]
+            else:
+                output_fields = ["corpusid", "sentence_number", "sentence_indices"]
         
         try:
             # Perform search
@@ -483,18 +487,37 @@ def print_summary(df: pd.DataFrame):
     print("=" * 70)
     
     print(f"Total results: {len(df)}")
-    print(f"Unique queries: {df['query_idx'].nunique()}")
+    
+    # Handle both regular and RRF results
+    if 'query_idx' in df.columns:
+        print(f"Unique queries: {df['query_idx'].nunique()}")
+    
     print(f"Unique documents: {df['corpusid'].nunique()}")
     
+    # Show distance statistics for regular queries
     if 'distance' in df.columns:
         print(f"\nDistance statistics:")
         print(f"  Mean: {df['distance'].mean():.4f}")
         print(f"  Std:  {df['distance'].std():.4f}")
         print(f"  Min:  {df['distance'].min():.4f}")
         print(f"  Max:  {df['distance'].max():.4f}")
+        
+        print("\nTop 5 results by distance:")
+        top_cols = ['distance', 'corpusid', 'rank']
+        if 'query' in df.columns:
+            top_cols.insert(0, 'query')
+        print(df.nlargest(5, 'distance')[top_cols].to_string(index=False))
     
-    print("\nTop 5 results by distance:")
-    print(df.nlargest(5, 'distance')[['query', 'distance', 'corpusid', 'rank']].to_string(index=False))
+    # Show RRF score statistics for RRF results
+    elif 'rrf_score' in df.columns:
+        print(f"\nRRF score statistics:")
+        print(f"  Mean: {df['rrf_score'].mean():.4f}")
+        print(f"  Std:  {df['rrf_score'].std():.4f}")
+        print(f"  Min:  {df['rrf_score'].min():.4f}")
+        print(f"  Max:  {df['rrf_score'].max():.4f}")
+        
+        print("\nTop 5 results by RRF score:")
+        print(df.head(5)[['rank', 'rrf_score', 'corpusid']].to_string(index=False))
     
     print("=" * 70 + "\n")
 
