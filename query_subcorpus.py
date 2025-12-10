@@ -6,10 +6,25 @@ This script provides a flexible interface for querying subcorpus collections wit
 - Query input from text file (one query per line)
 - Support for both sentence and paragraph level search
 - Reciprocal Rank Fusion (RRF) for aggregating results across multiple queries
+- Support for both standard sentence-transformers and SPECTER2 models
 - Extensible result processing and output formats
 
+Model Support:
+    The script supports two types of embedding models:
+    
+    1. Standard sentence-transformers models (default):
+       - Multi-qa-MiniLM-L6-cos-v1 (default, 384-dim)
+       - All-MiniLM-L6-v2, all-mpnet-base-v2, etc.
+       - Fast, general-purpose embeddings
+    
+    2. SPECTER2 models (requires 'adapters' library):
+       - allenai/specter2_base (768-dim)
+       - Trained specifically for scientific papers
+       - Uses task-specific adapters (proximity, adhoc_query, etc.)
+       - Install with: pip install adapters
+
 Usage:
-    # Query sentence collection
+    # Query sentence collection with default model
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection sentences \\
@@ -33,6 +48,23 @@ Usage:
         --rrf-output-size 1000 \\
         --rrf-k 60 \\
         --output results.json
+    
+    # Use SPECTER2 model for scientific paper embeddings
+    python query_subcorpus.py \\
+        --db-name my_subcorpus \\
+        --collection sentences \\
+        --queries queries.txt \\
+        --model allenai/specter2_base \\
+        --output results.json
+    
+    # Use SPECTER2 with specific adapter for short text queries
+    python query_subcorpus.py \\
+        --db-name my_subcorpus \\
+        --collection sentences \\
+        --queries queries.txt \\
+        --model allenai/specter2_base \\
+        --adapter allenai/specter2_adhoc_query \\
+        --output results.json
 """
 
 import argparse
@@ -46,8 +78,9 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from pymilvus import connections, MilvusClient, db
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
+
+from model_adapter import UnifiedEmbedder
 
 
 class Tee:
@@ -84,6 +117,7 @@ class SubcorpusQueryClient:
     def __init__(self,
                  db_name: str,
                  model_name: str = DEFAULT_MODEL,
+                 adapter: Optional[str] = None,
                  milvus_host: str = DEFAULT_MILVUS_HOST,
                  milvus_port: int = DEFAULT_MILVUS_PORT,
                  use_gpu: bool = True):
@@ -92,13 +126,15 @@ class SubcorpusQueryClient:
         
         Args:
             db_name: Name of the Milvus database
-            model_name: Sentence transformer model name
+            model_name: Sentence transformer or SPECTER2 model name
+            adapter: Adapter for SPECTER2 models (optional, auto-detected if not specified)
             milvus_host: Milvus server host
             milvus_port: Milvus server port
             use_gpu: Whether to use GPU for encoding
         """
         self.db_name = db_name
         self.model_name = model_name
+        self.adapter = adapter
         self.milvus_host = milvus_host
         self.milvus_port = milvus_port
         self.use_gpu = use_gpu
@@ -129,10 +165,13 @@ class SubcorpusQueryClient:
         """Load sentence transformer model."""
         print(f"Loading encoder model: {self.model_name}...")
         
-        device = 'cuda' if self.use_gpu else 'cpu'
-        self.encoder = SentenceTransformer(self.model_name, device=device)
+        self.encoder = UnifiedEmbedder(
+            model_name=self.model_name,
+            adapter=self.adapter,
+            device='cuda' if self.use_gpu else 'cpu'
+        )
         
-        print(f"Encoder loaded on {device}")
+        print(f"Encoder loaded on {'cuda' if self.use_gpu else 'cpu'}")
     
     def encode_queries(self, queries: List[str], batch_size: int = 32) -> np.ndarray:
         """
@@ -525,7 +564,14 @@ Examples:
         '--model',
         type=str,
         default=DEFAULT_MODEL,
-        help=f'Sentence transformer model (default: {DEFAULT_MODEL})'
+        help=f'Sentence transformer or SPECTER2 model (default: {DEFAULT_MODEL})'
+    )
+    
+    parser.add_argument(
+        '--adapter',
+        type=str,
+        default=None,
+        help='Adapter for SPECTER2 models (e.g., allenai/specter2 for proximity). Auto-detected if not specified.'
     )
     
     parser.add_argument(
@@ -622,6 +668,7 @@ Examples:
         client = SubcorpusQueryClient(
             db_name=args.db_name,
             model_name=args.model,
+            adapter=args.adapter,
             milvus_host=args.milvus_host,
             milvus_port=args.milvus_port,
             use_gpu=not args.no_gpu

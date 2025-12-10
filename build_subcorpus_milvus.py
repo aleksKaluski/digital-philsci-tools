@@ -9,8 +9,41 @@ Uses indexed gzip for fast access to S2ORC papers via MongoDB metadata (filename
 
 The script is modular and designed for extensibility.
 
+Model Support:
+    The script supports two types of embedding models through the unified model adapter:
+    
+    1. Standard sentence-transformers models (default):
+       - Multi-qa-MiniLM-L6-cos-v1 (default, 384-dim)
+       - All-MiniLM-L6-v2, all-mpnet-base-v2, etc.
+       - Fast, general-purpose embeddings
+    
+    2. SPECTER2 models (requires 'adapters' library):
+       - allenai/specter2_base (768-dim)
+       - Trained specifically for scientific papers
+       - Uses task-specific adapters (proximity, adhoc_query, classification, regression)
+       - Install with: pip install adapters
+       - Default adapter: allenai/specter2 (proximity/retrieval)
+
 Usage:
-    python build_subcorpus_milvus.py --subcorpus subcorpus_20251105_164654.pkl --s2orc-path /path/to/s2orc/
+    # Build with default model
+    python build_subcorpus_milvus.py \\
+        --subcorpus subcorpus_20251105_164654.pkl \\
+        --s2orc-path /path/to/s2orc/
+    
+    # Build with SPECTER2 for scientific paper embeddings
+    python build_subcorpus_milvus.py \\
+        --subcorpus subcorpus_20251105_164654.pkl \\
+        --s2orc-path /path/to/s2orc/ \\
+        --model allenai/specter2_base \\
+        --db-name my_subcorpus
+    
+    # Build with specific SPECTER2 adapter
+    python build_subcorpus_milvus.py \\
+        --subcorpus subcorpus_20251105_164654.pkl \\
+        --s2orc-path /path/to/s2orc/ \\
+        --model allenai/specter2_base \\
+        --adapter allenai/specter2_classification \\
+        --db-name my_subcorpus
 """
 
 import argparse
@@ -25,7 +58,8 @@ import numpy as np
 
 from pymilvus import connections, MilvusClient, db, DataType
 from pymongo import MongoClient
-from sentence_transformers import SentenceTransformer
+
+from model_adapter import UnifiedEmbedder
 
 
 class Tee:
@@ -148,6 +182,7 @@ class MilvusSubcorpusBuilder:
                  s2orc_path: str,
                  selector: SubcorpusSelector,
                  model_name: str = DEFAULT_MODEL,
+                 adapter: Optional[str] = None,
                  embedding_dim: int = EMBEDDING_DIMENSION,
                  milvus_host: str = MILVUS_IP,
                  milvus_port: int = MILVUS_PORT,
@@ -162,7 +197,8 @@ class MilvusSubcorpusBuilder:
             db_name: Name of the Milvus database (will be created if doesn't exist)
             s2orc_path: Path to S2ORC gzipped JSONL files
             selector: SubcorpusSelector instance for choosing papers
-            model_name: Name of the sentence transformer model
+            model_name: Name of the sentence transformer or SPECTER2 model
+            adapter: Adapter for SPECTER2 models (optional, auto-detected if not specified)
             embedding_dim: Dimension of embeddings
             milvus_host: Milvus server host
             milvus_port: Milvus server port
@@ -175,6 +211,7 @@ class MilvusSubcorpusBuilder:
         self.s2orc_path = Path(s2orc_path)
         self.selector = selector
         self.model_name = model_name
+        self.adapter = adapter
         self.embedding_dim = embedding_dim
         self.milvus_host = milvus_host
         self.milvus_port = milvus_port
@@ -231,12 +268,14 @@ class MilvusSubcorpusBuilder:
         
         # Load encoder model
         print(f"\nLoading encoder model '{self.model_name}'...")
-        if self.use_gpu:
-            self.encoder = SentenceTransformer(self.model_name).cuda()
-            print("✓ Model loaded on GPU")
-        else:
-            self.encoder = SentenceTransformer(self.model_name)
-            print("✓ Model loaded on CPU")
+        
+        self.encoder = UnifiedEmbedder(
+            model_name=self.model_name,
+            adapter=self.adapter,
+            use_gpu=self.use_gpu
+        )
+        
+        print(f"✓ Model loaded on {'GPU' if self.use_gpu and self.encoder.device == 'cuda' else 'CPU'}")
         
         # Auto-detect and update embedding dimension from the actual model
         actual_dim = self.encoder.get_sentence_embedding_dimension()
@@ -1045,7 +1084,14 @@ Examples:
         '--model',
         type=str,
         default=DEFAULT_MODEL,
-        help=f'Sentence transformer model (default: {DEFAULT_MODEL})'
+        help=f'Sentence transformer or SPECTER2 model (default: {DEFAULT_MODEL})'
+    )
+    
+    parser.add_argument(
+        '--adapter',
+        type=str,
+        default=None,
+        help='Adapter for SPECTER2 models (e.g., allenai/specter2 for proximity). Auto-detected if not specified.'
     )
     
     parser.add_argument(
@@ -1183,6 +1229,7 @@ Examples:
             s2orc_path=args.s2orc_path,
             selector=selector,
             model_name=args.model,
+            adapter=args.adapter,
             embedding_dim=embedding_dim,
             milvus_host=args.milvus_host,
             milvus_port=args.milvus_port,

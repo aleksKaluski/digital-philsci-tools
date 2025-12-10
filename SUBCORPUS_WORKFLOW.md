@@ -734,6 +734,10 @@ python sample_random_corpus.py \
 
 ### Custom Embedding Models
 
+The workflow supports both standard sentence-transformers models and specialized models like SPECTER2.
+
+#### Standard Sentence Transformers
+
 ```bash
 # Use a different sentence transformer
 python build_subcorpus_milvus.py \
@@ -752,6 +756,63 @@ python query_subcorpus.py \
     --model sentence-transformers/all-mpnet-base-v2 \
     --output results.json
 ```
+
+#### SPECTER2 Models (Scientific Paper Embeddings)
+
+SPECTER2 models are specifically trained for scientific papers and use task-specific adapters. They require the `adapters` library:
+
+```bash
+# Install adapters library (one-time)
+pip install adapters
+```
+
+**Available SPECTER2 Adapters:**
+- `allenai/specter2` - **Proximity/retrieval** (default, recommended for most tasks)
+- `allenai/specter2_adhoc_query` - Short text queries for search
+- `allenai/specter2_classification` - Features for classification tasks
+- `allenai/specter2_regression` - Features for regression tasks
+
+**Using SPECTER2:**
+
+```bash
+# Build database with SPECTER2 (auto-detects proximity adapter)
+python build_subcorpus_milvus.py \
+    --subcorpus subcorpus.pkl \
+    --s2orc-path /path/to/s2orc/ \
+    --db-name my_subcorpus \
+    --model allenai/specter2_base \
+    --sentence-collection sentences \
+    --paragraph-collection paragraphs
+
+# Query with SPECTER2 (uses same adapter as build)
+python query_subcorpus.py \
+    --db-name my_subcorpus \
+    --collection sentences \
+    --queries queries.txt \
+    --model allenai/specter2_base \
+    --output results.json
+
+# Use specific adapter for short text queries
+python query_subcorpus.py \
+    --db-name my_subcorpus \
+    --collection sentences \
+    --queries short_queries.txt \
+    --model allenai/specter2_base \
+    --adapter allenai/specter2_adhoc_query \
+    --output results.json
+```
+
+**Model Comparison:**
+
+| Feature | MiniLM-L6 (default) | SPECTER2 |
+|---------|---------------------|----------|
+| Size | ~80MB | ~420MB |
+| Embedding Dim | 384 | 768 |
+| Speed (GPU) | ~2000 docs/sec | ~500 docs/sec |
+| Domain | General | Scientific papers |
+| Training | General web text | Citation links + ScIRepEval |
+
+**Note:** SPECTER2 models expect input formatted as `title [SEP] abstract` for optimal performance on scientific papers. For sentence/paragraph-level search (as in this workflow), the default proximity adapter works well.
 
 ### Checkpoint & Resume
 
@@ -985,15 +1046,50 @@ for i, sent in enumerate(paper['content']['annotations']['sentences']):
 
 ---
 
+## Technical Implementation Details
+
+### Unified Model Adapter
+
+The workflow uses a unified model adapter (`model_adapter.py`) that automatically handles both:
+- **Standard sentence-transformers models** (e.g., MiniLM, MPNet)
+- **SPECTER2 models** with task-specific adapters
+
+**Why Two Backends?**
+
+sentence-transformers:
+- High-level API with automatic pooling
+- Simple `.encode()` interface
+- Works with most Hugging Face models
+- **Limitation**: Cannot load models with custom architectures
+
+transformers + adapters (for SPECTER2):
+- Lower-level with manual tokenization
+- Supports adapter modules for task specialization
+- Required for SPECTER2's architecture
+- Extracts embeddings from CLS token: `outputs.last_hidden_state[:, 0, :]`
+
+**Automatic Detection:**
+
+The adapter automatically detects SPECTER2 models by checking for "specter2" in the model name and selects the appropriate backend. All scripts (`query_subcorpus.py`, `build_subcorpus_milvus.py`, `topic_modeling_analysis.py`) use this unified interface.
+
+**Adapter Selection:**
+
+If no adapter is specified for SPECTER2, it defaults to `allenai/specter2` (proximity/retrieval), which is suitable for most use cases. Specify a different adapter with `--adapter` for specialized tasks.
+
+---
+
 ## Performance Tips
 
 1. **Use SSD** for S2ORC corpus (10-100x faster than HDD)
 2. **Batch processing**: Process queries and papers in batches
 3. **GPU encoding**: 10-50x faster for embedding generation
+   - Standard models: ~2000 docs/sec on GPU
+   - SPECTER2 models: ~500 docs/sec on GPU (larger model)
 4. **Index properly**: Ensure MongoDB has indices on `corpusid`
 5. **Cache strategically**: The text retriever caches papers automatically
 6. **Checkpoint frequently**: For large subcorpora, checkpoint every 1000 papers
 7. **Choose right collection**: Use sentences for precision, paragraphs for context
+8. **Model selection**: Use SPECTER2 for domain-specific embeddings, standard models for speed
 
 ---
 
@@ -1033,6 +1129,6 @@ Contributions welcome! Please:
 
 ---
 
-**Last Updated:** November 14, 2025
+**Last Updated:** December 9, 2025
 
-**Version:** 1.1.0
+**Version:** 1.2.0

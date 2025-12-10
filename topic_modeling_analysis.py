@@ -69,11 +69,12 @@ import plotly.io as pio
 from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired, PartOfSpeech, MaximalMarginalRelevance
 from sklearn.feature_extraction.text import CountVectorizer
-from sentence_transformers import SentenceTransformer
 from umap import UMAP
 from hdbscan import HDBSCAN
 import gensim.corpora as corpora
 from gensim.models.coherencemodel import CoherenceModel
+
+from model_adapter import UnifiedEmbedder
 
 
 # Configuration
@@ -415,17 +416,37 @@ class DataLoader:
 
 
 class EmbeddingGenerator:
-    """Generate and manage document embeddings."""
+    """
+    Generate and manage document embeddings.
+    
+    Supports both standard sentence-transformers models and SPECTER2 models
+    through the unified model adapter. The adapter automatically detects the
+    model type and uses the appropriate backend.
+    
+    Supported Models:
+        - Standard sentence-transformers: all-MiniLM-L6-v2 (default), all-mpnet-base-v2, etc.
+        - SPECTER2: allenai/specter2_base (requires 'adapters' library: pip install adapters)
+    
+    Example:
+        # Standard model
+        embedder = EmbeddingGenerator('sentence-transformers/all-MiniLM-L6-v2')
+        embeddings = embedder.generate(docs)
+        
+        # SPECTER2 model
+        embedder = EmbeddingGenerator('allenai/specter2_base')
+        embeddings = embedder.generate(docs)
+    """
     
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         """
         Initialize embedding generator.
         
         Args:
-            model_name: Name of sentence transformer model
+            model_name: Name of sentence transformer or SPECTER2 model.
+                       SPECTER2 models automatically use the proximity adapter.
         """
         self.model_name = model_name
-        self.model = SentenceTransformer(model_name)
+        self.model = UnifiedEmbedder(model_name=model_name)
         print(f"Loaded embedding model: {model_name}")
     
     def generate(
