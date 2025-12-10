@@ -12,6 +12,11 @@ sentence-transformers>=2.2.0
 transformers>=4.30.0
 tokenizers>=0.13.0
 
+# Optional: For SPECTER2 model support (requires PyTorch above)
+# Uncomment if using allenai/specter2_base or similar models
+# Note: adapters library fully supports CUDA and MPS GPU acceleration
+# adapters>=0.2.1
+
 # Topic Modeling
 bertopic>=0.15.0
 umap-learn>=0.5.3

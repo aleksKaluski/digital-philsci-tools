@@ -5,8 +5,12 @@ Reproducible environment setup for topic modeling analysis on Apple Silicon (M4 
 ## Quick Start
 
 ```bash
-# 1. Create the environment
+# 1. Create the environment (takes 5-15 minutes)
 bash setup_environment.sh
+
+# OR use faster mamba solver (recommended):
+# conda install -n base mamba -c conda-forge
+# mamba env create -f environment_bertopic.yml
 
 # 2. Activate the environment
 conda activate bertopic
@@ -20,10 +24,11 @@ jupyter lab topic_modeling_notebook.ipynb
 
 ## System Requirements
 
-- **OS**: macOS (Apple Silicon - M1/M2/M3/M4)
+- **OS**: macOS (Apple Silicon - M1/M2/M3/M4) or Linux/Windows with CUDA
 - **RAM**: 16GB minimum, 32GB+ recommended
 - **Storage**: ~5GB for environment + data space
 - **Conda**: Miniconda or Anaconda (download from [here](https://docs.conda.io/en/latest/miniconda.html))
+- **Solver**: Mamba recommended for faster environment solving (optional)
 
 ## Environment Details
 
@@ -31,9 +36,10 @@ The environment includes:
 
 ### Core Dependencies
 - **Python**: 3.10
-- **PyTorch**: >=2.0.0 with MPS (Metal Performance Shaders) support
+- **PyTorch**: >=2.0.0 with MPS (Metal Performance Shaders) and CUDA support
 - **Transformers**: >=4.30.0
 - **Sentence Transformers**: >=2.2.0
+- **Adapters**: >=0.2.1 (optional, for SPECTER2 models - requires PyTorch)
 
 ### Topic Modeling
 - **BERTopic**: >=0.15.0
@@ -101,7 +107,41 @@ config = ModelConfig(use_gpu=False)
    - Requires cuML (CUDA-only, not available on macOS)
    - Falls back to CPU HDBSCAN automatically
 
-**Note**: UMAP and HDBSCAN GPU acceleration requires NVIDIA CUDA and is not available on Apple Silicon. However, embeddings generation (the most compute-intensive part) will use the M4 Pro GPU through MPS.
+**Note**: UMAP and HDBSCAN GPU acceleration requires NVIDIA CUDA and is not available on Apple Silicon. However, embeddings generation (the most compute-intensive part) will use the GPU through MPS (Apple Silicon) or CUDA (NVIDIA).
+
+## GPU Support
+
+### CUDA (NVIDIA GPUs - Linux/Windows)
+- Automatic GPU detection and usage
+- Full support for PyTorch, sentence-transformers, and adapters
+- Best performance for large-scale processing
+
+### MPS (Apple Silicon - macOS)
+- Metal Performance Shaders for M1/M2/M3/M4 chips
+- Supported by PyTorch, sentence-transformers, and adapters
+- Excellent performance for embedding generation
+- UMAP/HDBSCAN still use CPU (no Metal support)
+
+### Verification
+```bash
+# Check GPU availability
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}'); print(f'MPS: {torch.backends.mps.is_available()}')"
+```
+
+## SPECTER2 Support (Optional)
+
+For scientific paper embeddings, the `adapters` library enables SPECTER2 models:
+
+```bash
+# Install adapters (not available via conda)
+conda activate bertopic
+pip install adapters>=0.2.1
+
+# Verify installation
+python -c "from adapters import AutoAdapterModel; print('✅ Adapters installed')"
+```
+
+**Note**: The adapters library requires PyTorch (already included in environment). It fully supports both CUDA and MPS for GPU acceleration.
 
 ## Manual Setup (if script fails)
 
@@ -118,8 +158,11 @@ python -m spacy download en_core_web_sm
 # 4. Download NLTK data
 python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet')"
 
-# 5. Verify PyTorch MPS
-python -c "import torch; print(f'MPS available: {torch.backends.mps.is_available()}')"
+# 5. (Optional) Install adapters for SPECTER2
+pip install adapters>=0.2.1
+
+# 6. Verify GPU support
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'MPS available: {torch.backends.mps.is_available()}')"
 ```
 
 ## Updating the Environment
@@ -146,6 +189,100 @@ conda env export --from-history > environment_minimal.yml
 ```
 
 ## Troubleshooting
+
+### Slow Environment Solving
+
+If conda takes too long (>10 minutes) to solve the environment:
+
+**Option 1: Use Mamba (fastest, recommended)**
+```bash
+# Install mamba in base environment
+conda install -n base mamba -c conda-forge
+
+# Create environment with mamba (10-100x faster)
+mamba env create -f environment_bertopic.yml
+```
+
+**Option 2: Use libmamba solver (conda built-in)**
+```bash
+# Set libmamba as default solver
+conda config --set solver libmamba
+conda install -n base conda-libmamba-solver
+
+# Then create environment normally
+conda env create -f environment_bertopic.yml
+```
+
+**Option 3: Staged installation (best for low memory systems)**
+
+This is automatically attempted by `setup_environment.sh` if normal installation fails.
+
+```bash
+# Create minimal environment first
+conda create -n bertopic python=3.10 -y
+conda activate bertopic
+
+# Install in stages to avoid memory exhaustion
+conda install pytorch torchvision torchaudio -c conda-forge -y
+conda install sentence-transformers transformers -c conda-forge -y
+conda install bertopic umap-learn hdbscan -c conda-forge -y
+conda install jupyterlab matplotlib plotly scikit-learn pandas numpy -c conda-forge -y
+conda install spacy nltk gensim pymongo pyarrow tqdm psutil joblib -c conda-forge -y
+
+# Optional: SPECTER2 support
+pip install adapters
+```
+
+### Process Killed During Installation (OOM)
+
+If you see "Killed" or "Unicestwiony" (Polish for "Killed") during conda solving:
+
+**Cause**: System ran out of memory (OOM killer terminated the process)
+
+**Solutions**:
+
+1. **Use mamba** (uses much less memory):
+   ```bash
+   conda install -n base mamba -c conda-forge
+   mamba env create -f environment_bertopic.yml
+   ```
+
+2. **Increase swap space** (Linux):
+   ```bash
+   # Check current swap
+   free -h
+   
+   # Create 4GB swap file (adjust size as needed)
+   sudo fallocate -l 4G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   
+   # Make permanent (add to /etc/fstab)
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+3. **Use staged installation** (run `setup_environment.sh` - it auto-detects failures and falls back)
+
+4. **Reduce concurrent processes**:
+   ```bash
+   # Set conda to use fewer threads
+   export CONDA_PKGS_DIRS=$HOME/.conda/pkgs
+   export CONDA_ENVS_DIRS=$HOME/.conda/envs
+   conda env create -f environment_bertopic.yml --solver-threads=1
+   ```
+
+### Arch Linux Specific Issues
+
+For Arch Linux deployment environments:
+
+1. **Use mamba** - Arch's package manager conflicts with conda solver less when using mamba
+2. **Ensure sufficient RAM** - At least 4GB free during installation (8GB+ recommended)
+3. **Check system limits**:
+   ```bash
+   ulimit -a  # Check resource limits
+   ulimit -v unlimited  # Remove virtual memory limit if restricted
+   ```
 
 ### MPS Not Available
 

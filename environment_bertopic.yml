@@ -1,71 +1,105 @@
+# BERTopic Topic Modeling Environment
+# Optimized for memory-constrained systems (e.g., Arch Linux deployment)
+#
+# Key optimizations:
+# 1. Removed pytorch channel (use conda-forge for consistency)
+# 2. Minimal version constraints to reduce solver memory usage
+# 3. Commented out optional packages (install via pip after if needed)
+# 4. Use pip section for adapters (not in conda)
+#
+# Installation tips:
+# - Use mamba for 10-100x faster solving: mamba env create -f environment_bertopic.yml
+# - Or use libmamba solver: conda config --set solver libmamba
+# - For systems with <8GB RAM, use the staged installation method (see README_ENVIRONMENT.md)
+#
 name: bertopic
 channels:
   - conda-forge
-  - pytorch
   - defaults
 dependencies:
   # Python version
   - python=3.10
   
   # Core scientific computing
-  - numpy>=1.24.0,<2.0.0
-  - pandas>=2.0.0
-  - scipy>=1.10.0
+  - numpy<2.0.0
+  - pandas
+  - scipy
   
-  # Machine Learning - PyTorch with MPS support for Apple Silicon
-  - pytorch>=2.0.0
+  # Machine Learning - PyTorch with MPS/CUDA support
+  # Using conda-forge for consistency (avoid pytorch channel mixing)
+  - pytorch
   - torchvision
   - torchaudio
   
   # NLP and Embeddings
-  - sentence-transformers>=2.2.0
-  - transformers>=4.30.0
-  - tokenizers>=0.13.0
+  - sentence-transformers
+  - transformers
+  - tokenizers
+  
+  # NOTE: adapters library is not available via conda
+  # Install via pip after environment creation for SPECTER2 support:
+  # pip install adapters>=0.2.1
+  # The adapters library requires PyTorch (already included above)
   
   # Topic Modeling
-  - bertopic>=0.15.0
-  - umap-learn>=0.5.3
-  - hdbscan>=0.8.33
+  - bertopic
+  - umap-learn
+  - hdbscan
   
   # Text Processing
-  - spacy>=3.5.0
-  - nltk>=3.8.0
-  - gensim>=4.3.0
+  - spacy
+  - nltk
+  - gensim
+  - langdetect
   
   # Dimensionality Reduction & Clustering
-  - scikit-learn>=1.3.0
+  - scikit-learn
   
   # Visualization
-  - matplotlib>=3.7.0
-  - plotly>=5.14.0
-  - python-kaleido>=0.2.1
+  - matplotlib
+  - plotly
+  - python-kaleido
   
   # Data Handling
-  - pymongo>=4.3.0
-  - pyarrow>=12.0.0  # For parquet support
+  - pymongo
+  - pymilvus
+  - pyarrow
   
   # Utilities
-  - tqdm>=4.65.0
-  - psutil>=5.9.0
-  - joblib>=1.3.0
+  - tqdm
+  - psutil
+  - joblib
   
   # Jupyter
-  
-  # Jupyter
-  - jupyter>=1.0.0
-  - jupyterlab>=4.0.0
-  - ipywidgets>=8.0.0
-  - notebook>=7.0.0
+  - jupyter
+  - jupyterlab
+  - ipywidgets
+  - notebook
   
   # Development tools (optional but recommended)
-  - black
-  - flake8
-  - pylint
-  - mypy
+  # Install separately if needed to avoid solver conflicts:
+  # conda install -n bertopic black flake8 pylint mypy
+  # - black
+  # - flake8
+  # - pylint
+  # - mypy
+  
+  # Install adapters via pip (not available in conda)
+  - pip
+  - pip:
+    # Uncomment to install adapters automatically
+    # - adapters>=0.2.1
 
 # Post-installation instructions:
 # After creating the environment, run:
 # 1. conda activate bertopic
 # 2. python -m spacy download en_core_web_sm
 # 3. python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
-# 4. Verify GPU: python -c "import torch; print(f'MPS available: {torch.backends.mps.is_available()}')"
+# 4. (Optional) For SPECTER2 model support: pip install adapters>=0.2.1
+# 5. Verify GPU: python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'MPS available: {torch.backends.mps.is_available()}')"
+
+# Note on GPU Support:
+# - CUDA: For NVIDIA GPUs on Linux/Windows
+# - MPS: For Apple Silicon (M1/M2/M3) on macOS
+# - PyTorch automatically selects the appropriate backend
+# - The adapters library fully supports both CUDA and MPS through PyTorch
