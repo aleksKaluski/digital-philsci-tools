@@ -860,6 +860,13 @@ Examples:
         help='Save checkpoint every N papers (default: 100)'
     )
     
+    parser.add_argument(
+        '--log-dir',
+        type=str,
+        default='.',
+        help='Directory to save log files (default: current directory)'
+    )
+    
     args = parser.parse_args()
     
     # Create default checkpoint file if not provided
@@ -929,9 +936,20 @@ Examples:
 
 
 if __name__ == '__main__':
+    # Parse args first to get log directory
+    import sys
+    temp_args = sys.argv[1:]
+    log_dir = '.'
+    for i, arg in enumerate(temp_args):
+        if arg == '--log-dir' and i + 1 < len(temp_args):
+            log_dir = temp_args[i + 1]
+            break
+    
     # Setup logging to file
+    from pathlib import Path
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = f'retrieve_query_texts_{timestamp}.log'
+    log_file = str(Path(log_dir) / f'retrieve_query_texts_{timestamp}.log')
     tee = Tee(log_file)
     sys.stdout = tee
     

@@ -1985,6 +1985,13 @@ def main():
         help='Font family to use for visualizations (default: Noto Sans)'
     )
     
+    parser.add_argument(
+        '--log-dir',
+        type=str,
+        default='.',
+        help='Directory to save log files (default: current directory)'
+    )
+    
     args = parser.parse_args()
     
     # Determine whether to fetch metadata
@@ -2044,9 +2051,19 @@ def main():
 if __name__ == '__main__':
     from datetime import datetime
     
+    # Parse args first to get log directory
+    temp_args = sys.argv[1:]
+    log_dir = '.'
+    for i, arg in enumerate(temp_args):
+        if arg == '--log-dir' and i + 1 < len(temp_args):
+            log_dir = temp_args[i + 1]
+            break
+    
     # Setup logging to file
+    from pathlib import Path
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = f'visualize_subcorpus_{timestamp}.log'
+    log_file = str(Path(log_dir) / f'visualize_subcorpus_{timestamp}.log')
     tee = Tee(log_file)
     sys.stdout = tee
     

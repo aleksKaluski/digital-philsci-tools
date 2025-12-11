@@ -1163,6 +1163,13 @@ Examples:
         help='Vector index type (default: IVF_PQ)'
     )
     
+    parser.add_argument(
+        '--log-dir',
+        type=str,
+        default='.',
+        help='Directory to save log files (default: current directory)'
+    )
+    
     args = parser.parse_args()
     
     print("=" * 70)
@@ -1322,9 +1329,18 @@ Examples:
 if __name__ == '__main__':
     from datetime import datetime
     
+    # Parse args first to get log directory
+    temp_args = sys.argv[1:]
+    log_dir = '.'
+    for i, arg in enumerate(temp_args):
+        if arg == '--log-dir' and i + 1 < len(temp_args):
+            log_dir = temp_args[i + 1]
+            break
+    
     # Setup logging to file
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = f'build_subcorpus_milvus_{timestamp}.log'
+    log_file = str(Path(log_dir) / f'build_subcorpus_milvus_{timestamp}.log')
     tee = Tee(log_file)
     sys.stdout = tee
     
