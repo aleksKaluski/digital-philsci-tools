@@ -4,14 +4,12 @@ Topic Modeling Analysis Module
 A modular, extensible framework for BERTopic-based topic modeling analysis of scientific literature.
 Supports both legacy formats (nested paragraph lists) and new formats (flat text with context).
 
-Author: Digital Philosophy of Science Tools
-Date: November 14, 2025
-Version: 2.1.0
-
 Key Features:
 - Dual format support (legacy JSON and retrieve_query_texts.py output)
 - Multiple text modes: analyze query results alone or with full context
 - Automatic detection of query level (sentence vs paragraph)
+- **Milvus integration: Reuse embeddings from Milvus databases**
+- **Model entire Milvus collections without recomputing embeddings**
 - Standardized model naming based on data characteristics
 - Modular architecture with separate classes for each concern
 - GPU acceleration support (CUDA/MPS for embeddings, cuML for UMAP/HDBSCAN)
@@ -23,6 +21,42 @@ Key Features:
 Text Modes:
 - "result": Analyze only the matched query text
 - "result-with-context": Analyze text with context_before and context_after
+- "milvus": Load from Milvus database collection
+
+Milvus Integration:
+    The module can now load pre-computed embeddings from Milvus databases
+    (e.g., created by build_subcorpus_milvus.py), avoiding the need to
+    recompute embeddings and significantly speeding up topic modeling.
+    
+    Two main use cases:
+    
+    1. Reuse embeddings from existing query results:
+       # Load data from JSON, but use Milvus embeddings if available
+       loader = DataLoader("results.json")
+       docs, metadata = loader.load()
+       
+       # Load embeddings from Milvus instead of computing
+       milvus_loader = MilvusEmbeddingLoader(
+           db_name='my_subcorpus',
+           collection_name='paragraphs'
+       )
+       embeddings, _ = milvus_loader.load_embeddings()
+       
+       # Build model with pre-computed embeddings
+       modeler = TopicModeler(config)
+       model, topics, probs = modeler.fit(docs, embeddings)
+    
+    2. Model entire Milvus collections:
+       # Build topic model directly from Milvus collection
+       # Requires subcorpus pickle file from query_milvus_rrf.py
+       results = build_topic_model_from_milvus(
+           db_name='my_subcorpus',
+           collection_name='paragraphs',
+           subcorpus_file='subcorpus_results.pkl',  # From query_milvus_rrf.py
+           config=config,
+           s2orc_path='/path/to/s2orc',
+           limit=1000  # Optional: limit number of documents
+       )
 
 Usage:
     # See accompanying Jupyter notebook: topic_modeling_notebook.ipynb
@@ -75,6 +109,15 @@ import gensim.corpora as corpora
 from gensim.models.coherencemodel import CoherenceModel
 
 from model_adapter import UnifiedEmbedder
+
+# Milvus support (optional)
+try:
+    from pymilvus import connections, MilvusClient, db
+    from pymongo import MongoClient
+    MILVUS_AVAILABLE = True
+except ImportError:
+    MILVUS_AVAILABLE = False
+    print("Milvus/MongoDB not available. Install with: pip install pymilvus pymongo")
 
 
 # Configuration
@@ -509,6 +552,399 @@ class EmbeddingGenerator:
         return embeddings
 
 
+class MilvusEmbeddingLoader:
+    """
+    Load embeddings from Milvus database collections.
+    
+    This allows reusing embeddings already stored in Milvus databases
+    (e.g., from build_subcorpus_milvus.py) instead of recomputing them.
+    
+    Example:
+        # Load embeddings from a Milvus collection
+        loader = MilvusEmbeddingLoader(
+            db_name='my_subcorpus',
+            collection_name='paragraphs',
+            milvus_host='localhost',
+            milvus_port=19530
+        )
+        embeddings, metadata = loader.load_embeddings()
+        docs = loader.get_documents_from_mongo(metadata)
+    """
+    
+    def __init__(self,
+                 db_name: str,
+                 collection_name: str,
+                 subcorpus_file: Optional[Union[str, Path]] = None,
+                 milvus_host: str = 'localhost',
+                 milvus_port: int = 19530,
+                 mongo_host: str = 'localhost',
+                 mongo_port: int = 27017):
+        """
+        Initialize Milvus embedding loader.
+        
+        Args:
+            db_name: Name of the Milvus database
+            collection_name: Name of the collection (e.g., 'sentences', 'paragraphs')
+            subcorpus_file: Path to subcorpus file (.pkl from query_milvus_rrf.py or .json from query_subcorpus.py)
+                          Required for large collections (>1M items). Supports both formats:
+                          - JSON: Contains 'corpusid' field in each record
+                          - Pickle: Contains 'corpus_ids' list
+            milvus_host: Milvus server host
+            milvus_port: Milvus server port
+            mongo_host: MongoDB server host (for fetching text)
+            mongo_port: MongoDB server port
+        """
+        if not MILVUS_AVAILABLE:
+            raise ImportError(
+                "Milvus support requires pymilvus and pymongo. "
+                "Install with: pip install pymilvus pymongo"
+            )
+        
+        self.db_name = db_name
+        self.collection_name = collection_name
+        self.subcorpus_file = Path(subcorpus_file) if subcorpus_file else None
+        self.milvus_host = milvus_host
+        self.milvus_port = milvus_port
+        self.mongo_host = mongo_host
+        self.mongo_port = mongo_port
+        
+        self.milvus_client = None
+        self.mongo_client = None
+    
+    def connect(self):
+        """Connect to Milvus and MongoDB."""
+        print(f"Connecting to Milvus at {self.milvus_host}:{self.milvus_port}...")
+        
+        # Connect to Milvus
+        connections.connect(host=self.milvus_host, port=self.milvus_port)
+        
+        # Enable the database
+        db.using_database(self.db_name)
+        
+        self.milvus_client = MilvusClient(
+            uri=f'http://{self.milvus_host}:{self.milvus_port}',
+            token='root:Milvus',
+            db_name=self.db_name
+        )
+        
+        print(f"✓ Connected to Milvus database '{self.db_name}'")
+        
+        # Load collection
+        print(f"Loading collection '{self.collection_name}'...")
+        self.milvus_client.load_collection(collection_name=self.collection_name)
+        print(f"✓ Collection '{self.collection_name}' loaded")
+        
+        # Connect to MongoDB
+        print(f"Connecting to MongoDB at {self.mongo_host}:{self.mongo_port}...")
+        self.mongo_client = MongoClient(self.mongo_host, self.mongo_port)
+        self.mongo_client.admin.command('ping')
+        print("✓ Connected to MongoDB")
+    
+    def load_embeddings(self,
+                       limit: Optional[int] = None,
+                       filter_expr: Optional[str] = None) -> Tuple[np.ndarray, pd.DataFrame]:
+        """
+        Load embeddings and metadata from Milvus collection.
+        
+        For JSON files (from query_subcorpus.py): Loads only the specific sentences/paragraphs
+        identified by corpusid + sentence_number/paragraph_number combinations.
+        
+        For pickle files (from query_milvus_rrf.py): Loads all sentences/paragraphs for each
+        corpus_id in the file.
+        
+        Args:
+            limit: Maximum number of embeddings to load (None = all)
+            filter_expr: Optional Milvus filter expression (e.g., 'rrf_score > 0.5')
+            
+        Returns:
+            Tuple of (embeddings array, metadata DataFrame)
+        """
+        if self.milvus_client is None:
+            self.connect()
+        
+        print(f"Loading embeddings from collection '{self.collection_name}'...")
+        
+        # Load corpus IDs from subcorpus file (JSON or pickle)
+        if self.subcorpus_file is None:
+            raise ValueError(
+                "subcorpus_file is required for loading embeddings. "
+                "Provide path to .json file from query_subcorpus.py or .pkl file from query_milvus_rrf.py"
+            )
+        
+        print(f"Loading data from {self.subcorpus_file}...")
+        
+        # Detect format by file extension
+        if self.subcorpus_file.suffix == '.json':
+            # JSON format from query_subcorpus.py - contains specific sentence/paragraph references
+            import json
+            with open(self.subcorpus_file, 'r') as f:
+                subcorpus_data = json.load(f)
+            
+            if not isinstance(subcorpus_data, list):
+                raise ValueError("Invalid JSON format - expected list of records")
+            
+            # Determine if we're working with sentences or paragraphs
+            if subcorpus_data and 'sentence_number' in subcorpus_data[0]:
+                number_field = 'sentence_number'
+                print(f"JSON file contains {len(subcorpus_data)} specific sentences")
+            elif subcorpus_data and 'paragraph_number' in subcorpus_data[0]:
+                number_field = 'paragraph_number'
+                print(f"JSON file contains {len(subcorpus_data)} specific paragraphs")
+            else:
+                raise ValueError("JSON records must contain 'sentence_number' or 'paragraph_number' field")
+            
+            # Query for each specific sentence/paragraph
+            all_results = []
+            processed_items = 0
+            skipped_items = 0
+            
+            from tqdm import tqdm
+            
+            for record in tqdm(subcorpus_data, desc=f"Loading specific {number_field}s"):
+                corpus_id = record.get('corpusid')
+                number = record.get(number_field)
+                
+                if corpus_id is None or number is None:
+                    skipped_items += 1
+                    continue
+                
+                try:
+                    # Query for this specific sentence/paragraph
+                    query_filter = f"corpusid == {corpus_id} && {number_field} == {number}"
+                    
+                    # Add user filter if provided
+                    if filter_expr:
+                        # Note: filter_expr might reference fields from JSON (like rrf_score)
+                        # that don't exist in Milvus. We'll apply those filters later.
+                        pass
+                    
+                    query_params = {
+                        "collection_name": self.collection_name,
+                        "output_fields": ["*"],
+                        "filter": query_filter,
+                        "limit": 1  # Should only be one match
+                    }
+                    
+                    batch_results = self.milvus_client.query(**query_params)
+                    
+                    if batch_results:
+                        # Add metadata from JSON to the result
+                        result = batch_results[0]
+                        # Preserve fields from JSON that aren't in Milvus (e.g., rrf_score, rank)
+                        for key, value in record.items():
+                            if key not in result:
+                                result[key] = value
+                        all_results.append(result)
+                        processed_items += 1
+                    else:
+                        skipped_items += 1
+                    
+                    # Check if we've reached user-specified limit
+                    if limit and len(all_results) >= limit:
+                        all_results = all_results[:limit]
+                        print(f"\nReached limit of {limit} embeddings")
+                        break
+                        
+                except Exception as e:
+                    skipped_items += 1
+                    continue
+            
+            print(f"\nLoaded {len(all_results)} specific {number_field}s from {processed_items} records")
+            if skipped_items > 0:
+                print(f"Skipped {skipped_items} records (not found in Milvus)")
+                
+        else:
+            # Pickle format from query_milvus_rrf.py - contains corpus_ids, load all sentences/paragraphs
+            import pickle
+            with open(self.subcorpus_file, 'rb') as f:
+                subcorpus_data = pickle.load(f)
+            
+            if isinstance(subcorpus_data, dict) and 'corpus_ids' in subcorpus_data:
+                corpus_ids = [int(cid) for cid in subcorpus_data['corpus_ids']]
+            else:
+                raise ValueError("Invalid pickle format - expected dict with 'corpus_ids' key")
+            
+            print(f"Found {len(corpus_ids)} papers in subcorpus")
+            
+            all_results = []
+            processed_papers = 0
+            skipped_papers = 0
+            
+            # Process papers in batches to avoid memory issues
+            from tqdm import tqdm
+            
+            for corpus_id in tqdm(corpus_ids, desc="Loading embeddings by paper"):
+                try:
+                    # Query all sentences/paragraphs for this paper
+                    query_params = {
+                        "collection_name": self.collection_name,
+                        "output_fields": ["*"],
+                        "filter": f"corpusid == {corpus_id}",
+                        "limit": 16384  # Max for safety, but should never hit this per paper
+                    }
+                    
+                    batch_results = self.milvus_client.query(**query_params)
+                    
+                    if batch_results:
+                        all_results.extend(batch_results)
+                        processed_papers += 1
+                    else:
+                        skipped_papers += 1
+                    
+                    # Check if we've reached user-specified limit
+                    if limit and len(all_results) >= limit:
+                        all_results = all_results[:limit]
+                        print(f"\nReached limit of {limit} embeddings")
+                        break
+                        
+                except Exception as e:
+                    skipped_papers += 1
+                    continue
+            
+            print(f"\nLoaded {len(all_results)} entries from {processed_papers} papers")
+            print(f"Skipped {skipped_papers} papers (excluded/invalid/non-English)")
+        
+        if not all_results:
+            raise ValueError(f"No data found in collection '{self.collection_name}'")
+        
+        # Extract embeddings and metadata
+        embeddings = []
+        metadata_records = []
+        
+        for result in all_results:
+            # Extract vector
+            if 'vector' in result:
+                embeddings.append(result['vector'])
+            
+            # Extract metadata (all non-vector fields)
+            metadata = {k: v for k, v in result.items() if k != 'vector'}
+            metadata_records.append(metadata)
+        
+        embeddings_array = np.array(embeddings)
+        metadata_df = pd.DataFrame(metadata_records)
+        
+        # Apply filter_expr if provided (for JSON files, this filters on metadata like rrf_score)
+        if filter_expr and self.subcorpus_file.suffix == '.json':
+            print(f"Applying filter: {filter_expr}")
+            # Simple filter evaluation (supports basic comparisons)
+            try:
+                filtered_mask = metadata_df.eval(filter_expr)
+                embeddings_array = embeddings_array[filtered_mask]
+                metadata_df = metadata_df[filtered_mask].reset_index(drop=True)
+                print(f"After filtering: {len(metadata_df)} entries remain")
+            except Exception as e:
+                print(f"Warning: Could not apply filter '{filter_expr}': {e}")
+        
+        print(f"Embeddings shape: {embeddings_array.shape}")
+        print(f"Metadata columns: {list(metadata_df.columns)}")
+        
+        return embeddings_array, metadata_df
+    
+    def get_documents_from_mongo(self,
+                                 metadata_df: pd.DataFrame,
+                                 s2orc_path: Optional[Union[str, Path]] = None) -> List[str]:
+        """
+        Retrieve document texts from MongoDB and S2ORC using metadata.
+        
+        Args:
+            metadata_df: DataFrame with corpusid and index information
+            s2orc_path: Path to S2ORC files (required for loading paper text)
+            
+        Returns:
+            List of document text strings
+        """
+        if self.mongo_client is None:
+            self.connect()
+        
+        if s2orc_path is None:
+            raise ValueError("s2orc_path is required to load document texts")
+        
+        from pathlib import Path
+        import json
+        
+        s2orc_path = Path(s2orc_path)
+        papers_collection = self.mongo_client.papers_db.papers
+        
+        print(f"Loading {len(metadata_df)} documents from S2ORC...")
+        
+        docs = []
+        unique_corpus_ids = metadata_df['corpusid'].unique()
+        
+        # Cache loaded papers
+        paper_cache = {}
+        
+        from tqdm import tqdm
+        
+        for idx, row in tqdm(metadata_df.iterrows(), total=len(metadata_df), desc="Loading texts"):
+            corpus_id = row['corpusid']
+            
+            # Load paper if not cached
+            if corpus_id not in paper_cache:
+                # Get metadata from MongoDB
+                mongo_result = papers_collection.find_one({"corpusid": corpus_id})
+                
+                if mongo_result is None:
+                    docs.append("")
+                    continue
+                
+                file_location = mongo_result.get('file_location')
+                if not file_location:
+                    docs.append("")
+                    continue
+                
+                filename, offset = file_location
+                filepath = s2orc_path / filename
+                
+                # Load paper from gzipped file
+                try:
+                    import indexed_gzip as igzip
+                    with igzip.IndexedGzipFile(str(filepath)) as f:
+                        f.seek(offset)
+                        line = f.readline()
+                        paper = json.loads(line)
+                except ImportError:
+                    import gzip
+                    with gzip.open(filepath, 'rt') as f:
+                        f.seek(offset)
+                        line = f.readline()
+                        paper = json.loads(line)
+                
+                paper_cache[corpus_id] = paper
+            else:
+                paper = paper_cache[corpus_id]
+            
+            # Extract text based on collection type
+            text = paper.get("content", {}).get("text", "")
+            
+            if self.collection_name in ['sentences', 'sentence']:
+                # Extract sentence text using indices
+                if 'sentence_indices' in row:
+                    indices = row['sentence_indices']
+                    if isinstance(indices, list) and len(indices) == 2:
+                        start, end = indices
+                        text = text[start:end].strip()
+            elif self.collection_name in ['paragraphs', 'paragraph']:
+                # Extract paragraph text using indices
+                if 'paragraph_indices' in row:
+                    indices = row['paragraph_indices']
+                    if isinstance(indices, list) and len(indices) == 2:
+                        start, end = indices
+                        text = text[start:end].strip()
+            
+            docs.append(text if text else "")
+        
+        print(f"Loaded {len(docs)} document texts")
+        return docs
+    
+    def close(self):
+        """Close connections."""
+        if self.mongo_client:
+            self.mongo_client.close()
+        if self.milvus_client:
+            connections.disconnect(alias="default")
+        print("✓ Connections closed")
+
+
 class TopicModeler:
     """Build and manage BERTopic models."""
     
@@ -521,7 +957,7 @@ class TopicModeler:
         """
         self.config = config or ModelConfig()
         self.model: Optional[BERTopic] = None
-        self.embedding_generator = EmbeddingGenerator(self.config.embedding_model_name)
+        self.embedding_generator = None  # Lazy initialization in fit()
         
     def _setup_dimensionality_reduction(self):
         """Setup UMAP dimensionality reduction (GPU or CPU)."""
@@ -634,7 +1070,29 @@ class TopicModeler:
         
         # Generate embeddings if not provided
         if embeddings is None:
+            # Lazy initialization of embedding generator
+            if self.embedding_generator is None:
+                self.embedding_generator = EmbeddingGenerator(self.config.embedding_model_name)
+            
             embeddings = self.embedding_generator.generate(docs)
+            # Use the embedding model in BERTopic
+            embedding_model_to_use = self.embedding_generator.model
+        else:
+            # Pre-computed embeddings provided - create a dummy embedding model
+            # BERTopic may need this for certain operations like update_topics
+            print("Using pre-computed embeddings")
+            
+            class DummyEmbedder:
+                """Dummy embedder that returns zeros - should not be called in normal flow."""
+                def embed_documents(self, docs):
+                    print("WARNING: Dummy embedder called - this shouldn't happen with pre-computed embeddings")
+                    # Return zero vectors of the same dimension as the pre-computed embeddings
+                    return np.zeros((len(docs), embeddings.shape[1]))
+                
+                def embed_query(self, query):
+                    return np.zeros(embeddings.shape[1])
+            
+            embedding_model_to_use = DummyEmbedder()
         
         # Setup components
         umap_model = self._setup_dimensionality_reduction()
@@ -650,7 +1108,7 @@ class TopicModeler:
             vectorizer_model=vectorizer_model,
             nr_topics=self.config.nr_topics,
             calculate_probabilities=self.config.calculate_probabilities,
-            embedding_model=self.embedding_generator.model,
+            embedding_model=embedding_model_to_use,
             top_n_words=10,
         )
         
@@ -1515,6 +1973,247 @@ def build_all_text_mode_models(
     print(f"{'='*80}")
     
     return results
+
+
+def build_topic_model_from_milvus(
+    db_name: str,
+    collection_name: str,
+    subcorpus_file: Union[str, Path],
+    config: ModelConfig,
+    s2orc_path: Union[str, Path],
+    milvus_host: str = 'localhost',
+    milvus_port: int = 19530,
+    mongo_host: str = 'localhost',
+    mongo_port: int = 27017,
+    limit: Optional[int] = None,
+    filter_expr: Optional[str] = None,
+    output_dir: Optional[Union[str, Path]] = None,
+    export_doc_info: bool = False,
+    skip_doc_info: bool = False
+) -> Dict[str, Any]:
+    """
+    Build a topic model from embeddings stored in a Milvus collection.
+    
+    This function loads pre-computed embeddings from a Milvus database
+    (e.g., created by build_subcorpus_milvus.py) and uses them for
+    topic modeling, avoiding the need to recompute embeddings.
+    
+    Args:
+        db_name: Name of the Milvus database
+        collection_name: Name of the collection (e.g., 'sentences', 'paragraphs')
+        subcorpus_file: Path to subcorpus pickle file from query_milvus_rrf.py
+        config: Model configuration
+        s2orc_path: Path to S2ORC gzipped files (for loading document texts)
+        milvus_host: Milvus server host
+        milvus_port: Milvus server port
+        mongo_host: MongoDB server host
+        mongo_port: MongoDB server port
+        limit: Maximum number of documents to process (None = all)
+        filter_expr: Optional Milvus filter expression
+        output_dir: Output directory (overrides config.output_dir if provided)
+        export_doc_info: Force export of document_info CSV even for large datasets
+        skip_doc_info: Never export document_info CSV regardless of dataset size
+        
+    Returns:
+        Dictionary containing:
+            - model: Trained BERTopic model
+            - topics: Topic assignments
+            - probs: Topic probabilities
+            - docs: Document list
+            - metadata_df: Metadata DataFrame
+            - embeddings: Document embeddings
+            - coherence: Coherence scores
+            - config: Model configuration
+    
+    Example:
+        config = ModelConfig(nr_topics=None, use_gpu=True)
+        results = build_topic_model_from_milvus(
+            db_name='my_subcorpus',
+            collection_name='paragraphs',
+            subcorpus_file='subcorpus_results.pkl',
+            config=config,
+            s2orc_path='/path/to/s2orc',
+            limit=1000
+        )
+    """
+    print(f"\\n{'='*80}")
+    print(f"Building topic model from Milvus collection")
+    print(f"  Database: {db_name}")
+    print(f"  Collection: {collection_name}")
+    print(f"{'='*80}\\n")
+    
+    if output_dir is not None:
+        config.output_dir = Path(output_dir)
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Set query level from collection name
+    if 'sentence' in collection_name.lower():
+        config.query_level = 'sentence'
+    elif 'paragraph' in collection_name.lower():
+        config.query_level = 'paragraph'
+    else:
+        config.query_level = collection_name
+    
+    config.text_mode = 'milvus'
+    
+    # Initialize Milvus loader
+    loader = MilvusEmbeddingLoader(
+        db_name=db_name,
+        collection_name=collection_name,
+        subcorpus_file=subcorpus_file,
+        milvus_host=milvus_host,
+        milvus_port=milvus_port,
+        mongo_host=mongo_host,
+        mongo_port=mongo_port
+    )
+    
+    # Load embeddings from Milvus
+    print("Loading embeddings from Milvus...")
+    embeddings, metadata_df = loader.load_embeddings(limit=limit, filter_expr=filter_expr)
+    
+    # Check for cached documents
+    cache_file = config.output_dir / f"docs_cache_{db_name}_{collection_name}.pkl"
+    
+    if cache_file.exists():
+        print(f"\nLoading cached documents from {cache_file}...")
+        import pickle
+        with open(cache_file, 'rb') as f:
+            cached_data = pickle.load(f)
+        
+        # Verify cache matches current metadata (check if same corpus_ids and indices)
+        cache_valid = False
+        if 'metadata_hash' in cached_data:
+            # Create hash of current metadata
+            import hashlib
+            metadata_str = str(sorted(metadata_df[['corpusid']].values.tolist()))
+            current_hash = hashlib.md5(metadata_str.encode()).hexdigest()
+            cache_valid = (cached_data['metadata_hash'] == current_hash)
+        
+        if cache_valid:
+            print("✓ Cache is valid, using cached documents")
+            docs = cached_data['docs']
+        else:
+            print("✗ Cache is outdated, reloading documents...")
+            docs = None
+    else:
+        docs = None
+    
+    # Load document texts from MongoDB/S2ORC if not cached
+    if docs is None:
+        print("\nLoading document texts from S2ORC...")
+        docs = loader.get_documents_from_mongo(metadata_df, s2orc_path=s2orc_path)
+        
+        # Save to cache
+        print(f"Saving documents to cache: {cache_file}")
+        import pickle
+        import hashlib
+        metadata_str = str(sorted(metadata_df[['corpusid']].values.tolist()))
+        metadata_hash = hashlib.md5(metadata_str.encode()).hexdigest()
+        
+        with open(cache_file, 'wb') as f:
+            pickle.dump({
+                'docs': docs,
+                'metadata_hash': metadata_hash
+            }, f)
+        print("✓ Cache saved")
+    
+    # Filter out empty documents
+    valid_indices = [i for i, doc in enumerate(docs) if doc.strip()]
+    if len(valid_indices) < len(docs):
+        print(f"Filtered {len(docs) - len(valid_indices)} empty documents")
+        docs = [docs[i] for i in valid_indices]
+        embeddings = embeddings[valid_indices]
+        metadata_df = metadata_df.iloc[valid_indices].reset_index(drop=True)
+    
+    print(f"\\nProcessing {len(docs)} documents")
+    
+    # Generate model suffix
+    model_suffix = f"{db_name}_{collection_name}_{config.get_model_suffix()}"
+    print(f"Model suffix: {model_suffix}\\n")
+    
+    # Build model
+    print("Building topic model...")
+    modeler = TopicModeler(config)
+    model, topics, probs = modeler.fit(docs, embeddings)
+    
+    # Evaluate
+    print("\\nEvaluating model...")
+    evaluator = ModelEvaluator()
+    coherence = evaluator.evaluate(docs, model)
+    
+    # Save model
+    model_file = config.output_dir / f"topic_model_{model_suffix}.safetensors"
+    modeler.save(model_file)
+    
+    # Save topic info
+    topic_info = model.get_topic_info()
+    topic_info_file = config.output_dir / f"topic_info_{model_suffix}.csv"
+    topic_info.to_csv(topic_info_file, index=False)
+    
+    # Generate visualizations
+    print("\\nGenerating visualizations...")
+    visualizer = Visualizer(config.output_dir)
+    visualizer.generate_all(model, docs, embeddings, name_suffix=f"_{model_suffix}")
+    
+    # Export results
+    print("\\nExporting results...")
+    analyzer = TopicDistributionAnalyzer(config.output_dir)
+    
+    # Determine whether to export document info based on size and user preferences
+    doc_count = len(docs)
+    should_export_doc_info = True
+    doc_info_exported = False
+    
+    if skip_doc_info:
+        should_export_doc_info = False
+        print(f"Skipping document_info export (user requested)")
+    elif not export_doc_info and doc_count > 10000:
+        should_export_doc_info = False
+        print(f"Skipping document_info export ({doc_count} docs > 10,000 threshold)")
+        print(f"  Use export_doc_info=True to force export for large datasets")
+    else:
+        if doc_count > 10000:
+            print(f"Exporting document_info for {doc_count} docs (user forced)...")
+        else:
+            print(f"Exporting document_info for {doc_count} docs...")
+    
+    if should_export_doc_info:
+        doc_info = analyzer.compute_document_info(
+            model, docs, metadata_df, name_suffix=f"_{model_suffix}"
+        )
+        doc_info_exported = True
+    else:
+        doc_info = None
+    
+    topic_dist = analyzer.compute_topic_distributions(
+        model, docs, metadata_df, name_suffix=f"_{model_suffix}"
+    )
+    
+    # Close connections
+    loader.close()
+    
+    # Cleanup
+    EnvironmentSetup.cleanup_memory()
+    
+    print(f"\\n✅ Model completed!")
+    print(f"   Model saved: {model_file}")
+    print(f"   Coherence: {coherence}")
+    print(f"\\n{'='*80}\\n")
+    
+    return {
+        "model": model,
+        "topics": topics,
+        "probs": probs,
+        "docs": docs,
+        "metadata_df": metadata_df,
+        "embeddings": embeddings,
+        "coherence": coherence,
+        "config": config,
+        "model_suffix": model_suffix,
+        "doc_info": doc_info,
+        "topic_dist": topic_dist,
+        "doc_info_exported": doc_info_exported
+    }
 
 
 if __name__ == "__main__":
