@@ -335,6 +335,9 @@ class SubcorpusQueryClient:
         RRF formula: RRF_score(d) = Σ(1 / (k + rank_i(d)))
         where k is a constant (typically 60) and rank_i(d) is the rank of document d in query i.
         
+        Note: RRF is computed per individual sentence/paragraph, not per document.
+        Multiple sentences/paragraphs from the same article are kept separate.
+        
         Args:
             results: List of search results from multiple queries
             output_size: Number of top results to return
@@ -346,39 +349,50 @@ class SubcorpusQueryClient:
         print(f"Applying Reciprocal Rank Fusion (k={k}, output_size={output_size})...")
         
         rrf_scores = defaultdict(float)
-        corpus_data = {}  # Store entity data for each corpusid
+        entity_data = {}  # Store entity data for each unique sentence/paragraph
         
         for query_idx, query_results in enumerate(results):
             for rank, result in enumerate(query_results, start=1):
                 entity = result.get('entity', {})
                 corpus_id = entity.get('corpusid')
                 
+                # Create unique key for each sentence/paragraph
+                # Use sentence_number or paragraph_number to distinguish multiple hits from same document
+                if 'sentence_number' in entity:
+                    unique_key = (corpus_id, entity.get('sentence_number'))
+                elif 'paragraph_number' in entity:
+                    unique_key = (corpus_id, entity.get('paragraph_number'))
+                else:
+                    # Fallback to corpus_id only if no sentence/paragraph number
+                    unique_key = (corpus_id, 0)
+                
                 if corpus_id is not None:
                     # RRF formula: 1 / (k + rank)
-                    rrf_scores[corpus_id] += 1.0 / (k + rank)
+                    rrf_scores[unique_key] += 1.0 / (k + rank)
                     
                     # Store entity data (keep first occurrence)
-                    if corpus_id not in corpus_data:
-                        corpus_data[corpus_id] = entity
+                    if unique_key not in entity_data:
+                        entity_data[unique_key] = entity
         
         # Sort by RRF score (descending) and take top N
         sorted_results = sorted(
-            [(corpus_id, score) for corpus_id, score in rrf_scores.items()],
+            [(key, score) for key, score in rrf_scores.items()],
             key=lambda x: x[1],
             reverse=True
         )[:output_size]
         
-        print(f"Selected top {len(sorted_results)} documents from {len(rrf_scores)} unique candidates")
+        unique_docs = len(set(key[0] for key in rrf_scores.keys()))
+        print(f"Selected top {len(sorted_results)} sentences/paragraphs from {unique_docs} unique documents")
         
         # Format results as DataFrame
         formatted_results = []
-        for rank, (corpus_id, rrf_score) in enumerate(sorted_results, start=1):
-            entity = corpus_data[corpus_id]
+        for rank, (unique_key, rrf_score) in enumerate(sorted_results, start=1):
+            entity = entity_data[unique_key]
             
             formatted_result = {
                 'rank': rank,
                 'rrf_score': rrf_score,
-                'corpusid': corpus_id,
+                'corpusid': unique_key[0],  # Extract corpus_id from tuple
             }
             
             # Add all entity fields, converting protobuf objects
