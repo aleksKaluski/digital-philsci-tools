@@ -104,7 +104,9 @@ class Tee:
 # Default configuration
 DEFAULT_MILVUS_HOST = "localhost"
 DEFAULT_MILVUS_PORT = 19530
-DEFAULT_MODEL = "multi-qa-MiniLM-L6-cos-v1"
+# DEFAULT_MODEL = "multi-qa-MiniLM-L6-cos-v1"
+
+DEFAULT_MODEL = "allenai/specter2_base"
 DEFAULT_LIMIT = 1000
 DEFAULT_METRIC_TYPE = "COSINE"
 DEFAULT_RRF_K = 60
