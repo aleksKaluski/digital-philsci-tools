@@ -949,7 +949,7 @@ if __name__ == '__main__':
     from pathlib import Path
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = str(Path(log_dir) / f'retrieve_query_texts_{timestamp}.log')
+    log_file = str(Path(log_dir) / f'Logs/retrieve_query_texts_{timestamp}.log')
     tee = Tee(log_file)
     sys.stdout = tee
     

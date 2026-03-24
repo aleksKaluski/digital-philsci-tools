@@ -789,7 +789,7 @@ if __name__ == '__main__':
     from pathlib import Path
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = str(Path(log_dir) / f'query_subcorpus_{timestamp}.log')
+    log_file = str(Path(log_dir) / f'Logs/query_subcorpus_{timestamp}.log') # logs redirected to a folder (AK)
     tee = Tee(log_file)
     sys.stdout = tee
     
