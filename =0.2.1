@@ -1,0 +1,39 @@
+Collecting adapters
+  Downloading adapters-1.2.0-py3-none-any.whl.metadata (17 kB)
+Collecting transformers~=4.51.3 (from adapters)
+  Downloading transformers-4.51.3-py3-none-any.whl.metadata (38 kB)
+Requirement already satisfied: packaging in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from adapters) (26.0)
+Requirement already satisfied: filelock in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (3.25.2)
+Requirement already satisfied: huggingface-hub<1.0,>=0.30.0 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (0.36.0)
+Requirement already satisfied: numpy>=1.17 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (1.26.4)
+Requirement already satisfied: pyyaml>=5.1 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (6.0.3)
+Requirement already satisfied: regex!=2019.12.17 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (2026.2.28)
+Requirement already satisfied: requests in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (2.32.5)
+Collecting tokenizers<0.22,>=0.21 (from transformers~=4.51.3->adapters)
+  Downloading tokenizers-0.21.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.7 kB)
+Requirement already satisfied: safetensors>=0.4.3 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (0.7.0)
+Requirement already satisfied: tqdm>=4.27 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from transformers~=4.51.3->adapters) (4.67.3)
+Requirement already satisfied: fsspec>=2023.5.0 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers~=4.51.3->adapters) (2026.2.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers~=4.51.3->adapters) (1.4.2)
+Requirement already satisfied: typing-extensions>=3.7.4.3 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers~=4.51.3->adapters) (4.15.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from requests->transformers~=4.51.3->adapters) (3.4.6)
+Requirement already satisfied: idna<4,>=2.5 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from requests->transformers~=4.51.3->adapters) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from requests->transformers~=4.51.3->adapters) (2.6.3)
+Requirement already satisfied: certifi>=2017.4.17 in /home/akaluski/anaconda3/envs/bertopic/lib/python3.10/site-packages (from requests->transformers~=4.51.3->adapters) (2026.2.25)
+Downloading adapters-1.2.0-py3-none-any.whl (302 kB)
+Downloading transformers-4.51.3-py3-none-any.whl (10.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.4/10.4 MB 9.8 MB/s  0:00:01
+Downloading tokenizers-0.21.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 8.3 MB/s  0:00:00
+Installing collected packages: tokenizers, transformers, adapters
+  Attempting uninstall: tokenizers
+    Found existing installation: tokenizers 0.22.2
+    Uninstalling tokenizers-0.22.2:
+      Successfully uninstalled tokenizers-0.22.2
+  Attempting uninstall: transformers
+    Found existing installation: transformers 4.57.6
+    Uninstalling transformers-4.57.6:
+      Successfully uninstalled transformers-4.57.6
+
+Successfully installed adapters-1.2.0 tokenizers-0.21.4 transformers-4.51.3
+
