@@ -9,12 +9,14 @@ This repository plays with the code designed for Wiktor Rorot's PhD, _Scale-Free
 4. Make a simple test of MongoDB functionalities to verify the container. Populate it with a mock dataset of neopositivistic papers and test it! \
 `python mock_testing\mongo_simple_test.py`
 
-You should see: \
-[+] Inserted 3 papers. \
-[+] Created corpusid index \
-[+] Found paper: Verificationism Then and Now \
-[+] Total papers in collection: 36 \
+You should see: 
+```
+[+] Inserted 3 papers. 
+[+] Created corpusid index 
+[+] Found paper: Verificationism Then and Now 
+[+] Total papers in collection: 36 
 [SUCCESS] Total runtime: 0.02 seconds
+```
 
 To check clean the database and check it once again use: \
 `python -c "from pymongo import MongoClient; client = MongoClient('localhost', 27017); client.drop_database('papers_db'); print('Database dropped')"`
