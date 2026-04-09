@@ -9,7 +9,9 @@ release_id = "2024-08-06"
 SOURCE_PATH = f"/home/wikror/external/semantic-scholar-corpus/corpus/{release_id}/papers"
 MONGO_IP = "localhost"
 MONGO_PORT = 27017
-
+"""
+TODO: keep the files as cogfig 
+"""
 
 def main():
 

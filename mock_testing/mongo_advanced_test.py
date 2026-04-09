@@ -1,3 +1,8 @@
+"""
+Future developement: potential new tests for MongoDB.
+"""
+
+
 import json
 import pytest
 import gzip
@@ -54,9 +59,3 @@ def test_connection(mongo_client):
     """
     result = mongo_client.admin.command("ping")
     assert result["ok"] == 1.0
-
-
-def test_json_gz_parsing(mock_jsonl_gz_path):
-    pass
-
-

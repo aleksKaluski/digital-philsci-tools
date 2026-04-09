@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 # OUTPUT_PATH = "/home/wikror/external/semantic-scholar-corpus/corpus/"
 OUTPUT_PATH = "/home/wikror/external-specter/semantic-scholar-corpus/corpus/"
-DATASETS = ["embeddings-specter_v2"]#["papers", "s2orc"]#, "paper-ids", "s2orc"]
+DATASETS = ["embeddings-specter_v2"] #["papers", "s2orc"]#, "paper-ids", "s2orc"]
 
 load_dotenv()
 HEADERS = json.loads(os.getenv("HEADERS"))
