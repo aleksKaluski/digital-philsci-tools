@@ -16,7 +16,7 @@ sentence-transformers:
 
 transformers + adapters (for SPECTER2):
     - Lower-level, more flexible
-    - Manual tokenization and embedding extraction (CLS token)
+    - manual tokenization and embedding extraction (CLS token)
     - Task-specific adapters (proximity, classification, regression, adhoc_query)
     - Required for SPECTER2 family models with adapter architecture
 
