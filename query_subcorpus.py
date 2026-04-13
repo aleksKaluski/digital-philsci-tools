@@ -84,7 +84,12 @@ from model_adapter import UnifiedEmbedder
 
 
 class Tee:
-    """Redirect stdout to both terminal and log file."""
+    """
+    A small helper class in this repo that duplicates anything the program
+     prints so it goes to two places at once:
+     1) Terminal
+     2) A log file on disk (logs/...)
+    """
     def __init__(self, log_file):
         self.terminal = sys.stdout
         self.log = open(log_file, 'w', encoding='utf-8')
@@ -100,6 +105,10 @@ class Tee:
     
     def close(self):
         self.log.close()
+
+    # for compatibility with transformers
+    def isatty(self):
+        return hasattr(self.terminal, "isatty") and self.terminal.isatty()
 
 # Default configuration
 DEFAULT_MILVUS_HOST = "localhost"
@@ -789,7 +798,7 @@ if __name__ == '__main__':
     from pathlib import Path
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = str(Path(log_dir) / f'Logs/query_subcorpus_{timestamp}.log') # logs redirected to a folder (AK)
+    log_file = str(Path(log_dir) / f'logs/query_subcorpus_{timestamp}.log') # logs redirected to a folder (AK)
     tee = Tee(log_file)
     sys.stdout = tee
     

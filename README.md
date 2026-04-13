@@ -1,7 +1,10 @@
 # Digital Philosophical Tools
-This repository plays with the code designed for Wiktor Rorot's PhD, _Scale-Free Communication? An investigation of the use of the concept of "communication" in biology and cognitive sciences._ The code is a text processing pipeline based on BERTopic, enriched with the integration of external tools such as MongoDB and Milvus. However, in order to play with it, we need to create mock instances of these objects with Docker. Here is how to do it:
+This repository plays with the code designed for Wiktor Rorot's PhD, _Scale-Free Communication? An investigation of the use
+of the concept of "communication" in biology and cognitive sciences._ The code is a text processing pipeline based on BERTopic,
+enriched with the integration of external tools such as MongoDB and Milvus. However, in order to play with it, we need
+to create mock instances of these objects with Docker. Here is how to do it:
 
-## Complex way of setting the environment
+## Create Initial Python Environment
 First, make sure that you are using Python 3.11 by using:
 `python --version`. After that we may activate the environment by using the following commands:
 1. `py -3.11 -m venv .venv`
@@ -55,3 +58,33 @@ To clean the database and check it once again use: \
 If you would like to check the connection, you can use:\
 `Test-NetConnection -ComputerName localhost -Port 19530`\
 `Test-NetConnection -ComputerName localhost -Port 27017`
+
+## Creating BERT Environment
+First, you have to have conda installed (verify by using `conda --version`). Then, follow the steps:
+1. Create brand-new special folder for keeping you bertopic environment.\
+`mkdir C:\Users\your_name\conda_envs`
+2. Create the environment:\
+`conda env create -f environment_bertopic.yml --prefix C:\Users\your_name\conda_envs\bertopic`\
+It should take 5-15 mins.\
+At this point you face a danger of mixing your conda environment
+with your normal `(.venv)` environment. If you see sth like that:  `(.venv) PS C:\Python_files\digital-philsci-tools`
+you should avoid mixing by deactivating the `(.venv)`. Use `deactivate` and then
+`conda activate C:\Users\your_name\conda_envs\bertopic`. After that I advise to verify this step by using
+`python -c "from topic_modeling_analysis import *; print('✅ Success')"`                                                                                 
+
+## Running a Complete Analysis on Mock Database
+All right! If you read this, you are a very brave person! You have established your environment, and now you can 
+run your analysis on a mock corpus and test the actual program. It was hard, wasn't it? :) 
+
+Now, let's create mock objects! As you recall, we deactivated `(.venv)` for the sake of clarity. Now it's time
+to bring it back.
+1. Deactivate conda: `conda deactivate`
+2. Activate `(.venv)`: `.\.venv\Scripts\Activate.ps1`
+3. Verify. You should se Python 3.11: `python --version`
+
+Finally, we can create mock database in MongoDB:\
+`python mock_testing\create_mock_mongo_corpus.py`
+
+Then, create Milvus database:\
+`python mock_testing\create_mock_milvus_corpus.py` and then run `python -c "from pymilvus import connections, db; connections.connect(host='localhost', port=19530); print('dbs:', db.list_database())"`
+to be sure that Milvus includes **mock_philsci**
