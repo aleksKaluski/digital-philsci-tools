@@ -11,11 +11,11 @@ from pymongo import MongoClient
 MONGO_HOST = "localhost"
 MONGO_PORT = 27017
 
-DB_NAME = "mock_philsci"
+DB_NAME = "micro_subcorpus"
 COLLECTION_NAME = "papers"
 
 # path to your mock datset
-CORPUS_PATH = Path("mock_testing/data/mock_corpus.jsonl")
+CORPUS_PATH = Path("mock_testing/data/micro_s2orc.jsonl")
 
 
 def main() -> None:
@@ -45,7 +45,7 @@ def main() -> None:
                 raise ValueError(f"Invalid JSON on line {line_no}: {e}\nLine: {line}") from e
 
             # validate
-            if "corpusid" not in doc or "text" not in doc:
+            if "corpusid" not in doc:
                 raise ValueError(
                     f"Line {line_no} is missing required keys. "
                     f"Required: corpusid, text. Got keys: {list(doc.keys())}"

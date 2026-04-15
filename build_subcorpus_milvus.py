@@ -80,6 +80,10 @@ class Tee:
     def close(self):
         self.log.close()
 
+    # for compatibility with transformers
+    def isatty(self):
+        return hasattr(self.terminal, "isatty") and self.terminal.isatty()
+
 # For language detection
 try:
     from langdetect import detect, LangDetectException
@@ -189,7 +193,9 @@ class MilvusSubcorpusBuilder:
                  mongo_host: str = MONGO_IP,
                  mongo_port: int = MONGO_PORT,
                  use_gpu: bool = True,
-                 filter_language: bool = True):
+                 filter_language: bool = True,
+                 mongo_db_name: str = None,
+                 mongo_collection_name: str = None):
         """
         Initialize the builder.
         
@@ -224,7 +230,11 @@ class MilvusSubcorpusBuilder:
         self.mongo_client = None
         self.encoder = None
         self.nlp = None
-    
+
+        # for working with micro corpus
+        self.mongo_db_name = mongo_db_name
+        self.mongo_collection_name = mongo_collection_name
+
     def connect(self):
         """Connect to Milvus, MongoDB, and load models."""
         print(f"\n{'='*70}")
@@ -311,7 +321,14 @@ class MilvusSubcorpusBuilder:
         Returns:
             Metadata dict with 'filename' and 'offset' fields, or None if not found
         """
-        collection = self.mongo_client.papers_db.papers
+
+        # micro mode
+        if self.mongo_client is not None and self.mongo_client is not None:
+            db_obj = self.mongo_client[self.mongo_db_name]
+            collection = db_obj[self.mongo_collection_name]
+        # S2ORC mode
+        else:
+            collection = self.mongo_client.papers_db.papers
         
         max_retries = 3
         for attempt in range(max_retries):
@@ -319,18 +336,27 @@ class MilvusSubcorpusBuilder:
                 result = collection.find_one({"corpusid": corpus_id})
                 if result is None:
                     return None
-                
-                # Extract relevant metadata
+
+                # metadata retrival compatible both with micro-corpus version
+                # and normal corpus
                 metadata = {
-                    'corpusid': corpus_id,
-                    'file_location': result.get('file_location'),  # [filename, offset]
-                    'title': result.get('title'),
-                    'year': result.get('year'),
-                    'authors': result.get('authors'),
-                    'journal': result.get('journal', {}).get('name') if result.get('journal') else None,
-                    's2fieldsofstudy': result.get('s2fieldsofstudy', [])
+                    "corpusid": corpus_id,
+
+                    # present in S2ORC mode; may be None in micro mode
+                    "file_location": result.get("file_location"),
+
+                    "title": result.get("title") or result.get("metadata", {}).get("title"),
+                    "year": result.get("year") or result.get("metadata", {}).get("year"),
+                    "authors": result.get("authors") or result.get("metadata", {}).get("authors"),
+                    "journal": (
+                        result.get("journal", {}).get("name")
+                        if isinstance(result.get("journal"), dict)
+                        else None
+                    ),
+                    "s2fieldsofstudy": result.get("s2fieldsofstudy", []),
+                    "source_db": self.mongo_db_name,
+                    "source_collection": self.mongo_collection_name,
                 }
-                
                 return metadata
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -397,13 +423,29 @@ class MilvusSubcorpusBuilder:
         file_location = metadata.get('file_location')
         filename = file_location[0] if file_location else None
         offset = file_location[1] if file_location else None
-        
-        if filename is None or offset is None:
-            print(f"  ✗ Missing filename or offset for corpus ID {corpus_id}")
-            return None
-        
-        # Load paper from gzipped file
-        paper = self.load_paper_from_gzip(filename, offset)
+
+        # micro mode
+        if getattr(self, "mongo_db_name", None) and getattr(self, "mongo_collection_name", None):
+            try:
+                col = self.mongo_client[self.mongo_db_name][self.mongo_collection_name]
+                paper = col.find_one({"corpusid": corpus_id}, {"_id": 0})
+            except Exception as e:
+                print(f"✗ Error loading micro paper {corpus_id} from Mongo: {e}")
+                return None
+
+            if paper is None:
+                return None
+            paper.setdefault("content", {})
+            paper["content"].setdefault("text", "")
+            paper["content"].setdefault("annotations", {})
+
+        # SO2rc mode
+        else:
+            if filename is None or offset is None:
+                print(f"  ✗ Missing filename or offset for corpus ID {corpus_id}")
+                return None
+
+            paper = self.load_paper_from_gzip(filename, offset)
         
         if paper is None:
             return None
@@ -1169,7 +1211,19 @@ Examples:
         default='.',
         help='Directory to save log files (default: current directory)'
     )
-    
+
+    # for working with micro-corpus
+    parser.add_argument('--mongo-db-name',
+                        type=str,
+                        help='If you want to work within a specific MongoDB database (e.g. micro_corpus), type it here.',
+                        )
+
+    parser.add_argument('--mongo-collection-name',
+                        type=str,
+                        help='If you want to work within a specific collection of a specific database (e.g. papers), type it here.'
+                        )
+
+
     args = parser.parse_args()
     
     print("=" * 70)
@@ -1243,7 +1297,10 @@ Examples:
             mongo_host=args.mongo_host,
             mongo_port=args.mongo_port,
             use_gpu=not args.no_gpu,
-            filter_language=not args.no_language_filter
+            filter_language=not args.no_language_filter,
+            mongo_db_name=args.mongo_db_name,
+            mongo_collection_name = args.mongo_collection_name
+
         )
         
         # Connect to all services
