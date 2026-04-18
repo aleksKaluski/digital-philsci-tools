@@ -429,6 +429,14 @@ class MilvusSubcorpusBuilder:
             try:
                 col = self.mongo_client[self.mongo_db_name][self.mongo_collection_name]
                 paper = col.find_one({"corpusid": corpus_id}, {"_id": 0})
+
+                # normalize in order to be compatible
+                if "content" not in paper:
+                    paper["content"] = {}
+                if "text" not in paper["content"]:
+                    paper["content"]["text"] = paper.get("text", "") or ""
+                paper["content"].setdefault("annotations", {})
+
             except Exception as e:
                 print(f"✗ Error loading micro paper {corpus_id} from Mongo: {e}")
                 return None

@@ -72,7 +72,7 @@ you should avoid mixing by deactivating the `(.venv)`. Use `deactivate` and then
 `conda activate C:\Users\your_name\conda_envs\bertopic`. After that I advise to verify this step by using
 `python -c "from topic_modeling_analysis import *; print('✅ Success')"`                                                                                 
 
-## Running a Complete Analysis on Mock Database
+## Last Steps
 All right! If you read this, you are a very brave person! You have established your environment, and now you can 
 run your analysis on a mock corpus and test the actual program. It was hard, wasn't it? :) 
 
@@ -88,3 +88,44 @@ Finally, we can create mock database in MongoDB:\
 Then, create Milvus database:\
 `python mock_testing\create_mock_milvus_corpus.py` and then run `python -c "from pymilvus import connections, db; connections.connect(host='localhost', port=19530); print('dbs:', db.list_database())"`
 to be sure that Milvus includes **mock_philsci**
+
+## Running a Complete Analysis on Mock Database
+To intialize Milvus corpus, run: 
+```pycon
+python build_subcorpus_milvus.py 
+  --subcorpus mock_testing/data/micro_subcorpus.pkl 
+  --s2orc-path . 
+  --db-name micro_subcorpus 
+  --sentence-collection sentences 
+  --paragraph-collection paragraphs 
+  --model multi-qa-MiniLM-L6-cos-v1 
+  --no-gpu 
+  --mongo-db-name mock_philsci 
+  --mongo-collection-name papers
+```
+To check if you have the right amount of papers loaded use:
+
+```pycon
+python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); print('sentences', c.get_collection_stats('sentences')); print('paragraphs', c.get_collection_stats('paragraphs'))"  
+```
+
+It might be the case that you resumed the work from the checkpoint and then accidentally didn't load the papers in place.
+In this case delete the checkpoint `del subcorpus_checkpoint.pkl -ErrorAction SilentlyContinue` and run drop empty collections
+
+```pycon
+python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); \
+[print('dropping', name) or c.drop_collection(name) for name in ['sentences','paragraphs'] if c.has_collection(name)]; print('done')"
+```
+
+And re-run making corpus from skratch. 
+
+```pycon
+python query_subcorpus.py `
+  --db-name micro_subcorpus `
+  --collection paragraphs `
+  --queries queries.txt `
+  --output micro_query_results.json `
+  --limit 50 `
+  --model multi-qa-MiniLM-L6-cos-v1 `
+  --no-gpu
+```
