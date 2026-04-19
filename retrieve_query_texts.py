@@ -135,24 +135,46 @@ class TextRetriever:
         """
         # Query MongoDB for all corpus IDs at once
         query = {"corpusid": {"$in": corpusids}}
-        fields = {"corpusid": 1, "file_location": 1, "_id": 0}
+
+        # add support to Mongo-only databases
+        fields = {"corpusid": 1, "file_location": 1, "text": 1, "content": 1, "_id": 0}
         
         results = self.mongo_collection.find(query, fields)
-        
+
+        # improvement: working directly with MongoDB
         metadata = {}
         for doc in results:
             corpusid = int(doc["corpusid"])
             
             # file_location is a list: [filename, byte_offset]
+            # working with normal so2rc corpus mode
             file_location = doc.get("file_location", [])
-            if len(file_location) >= 2:
+            if isinstance(file_location, list) and len(file_location) >= 2:
                 metadata[corpusid] = {
+                    "mode": "s2orc",
                     "filename": file_location[0],
-                    "byte_offset": int(file_location[1])
+                    "byte_offset": int(file_location[1]),
+                }
+                continue
+
+            # working directly with mongo mode
+            direct_text = ""
+            if isinstance(doc.get("content"), dict) and isinstance(doc["content"].get("text"), str):
+                direct_text = doc["content"]["text"]
+            elif isinstance(doc.get("text"), str):
+                direct_text = doc["text"]
+
+            if direct_text.strip():
+                metadata[corpusid] = {
+                    "mode": "mongo",
+                    "paper": {
+                        "corpusid": corpusid,
+                        "text": direct_text,
+                        "content": doc.get("content", {}) if isinstance(doc.get("content"), dict) else {}
+                    }
                 }
             else:
-                print(f"Warning: Invalid file_location for corpus ID {corpusid}")
-        
+                print(f"Warning: Invalid file_location and no text found for corpus ID {corpusid}")
         return metadata
     
     def load_paper(self, corpusid: int, metadata: Optional[Dict] = None) -> Optional[Dict]:
@@ -177,6 +199,15 @@ class TextRetriever:
                 print(f"Warning: Corpus ID {corpusid} not found in MongoDB")
                 return None
             metadata = metadata_dict[corpusid]
+
+        # if we are working directly with mongo
+        # we don't need to have .gz files
+        if metadata.get("mode") == "mongo":
+            paper = metadata.get("paper")
+            if paper is not None:
+                self.paper_cache[corpusid] = paper
+                return paper
+            return None
         
         # Construct file path
         filename = metadata["filename"]
@@ -401,32 +432,20 @@ class TextRetriever:
             import traceback
             traceback.print_exc()
             return {"text": "", "error": str(e)}
-    
-    def process_results(self, 
-                       results: pd.DataFrame,
-                       include_context: bool = False,
-                       context_chars: int = 200,
-                       context_mode: str = 'chars',
-                       batch_size: int = 1000,
-                       checkpoint_file: Optional[str] = None,
-                       save_interval: int = 100) -> pd.DataFrame:
+
+    def process_results(self,
+                        results: pd.DataFrame,
+                        include_context: bool = False,
+                        context_chars: int = 200,
+                        context_mode: str = 'chars',
+                        batch_size: int = 1000,
+                        checkpoint_file: Optional[str] = None,
+                        save_interval: int = 100) -> pd.DataFrame:
         """
         Process query results and add text.
-        
-        Args:
-            results: DataFrame from query_subcorpus.py
-            include_context: Whether to include surrounding context
-            context_chars: Number of characters for context (only for context_mode='chars')
-            context_mode: Context extraction mode - 'chars' for character count, 'paragraph' for full paragraph
-            batch_size: Batch size for MongoDB queries
-            checkpoint_file: Path to checkpoint file for resuming (optional)
-            save_interval: Save progress every N rows (default: 100)
-            
-        Returns:
-            DataFrame with added text columns
         """
         print(f"\nProcessing {len(results)} results...")
-        
+
         # Check for existing checkpoint
         start_idx = 0
         if checkpoint_file and Path(checkpoint_file).exists():
@@ -435,110 +454,122 @@ class TextRetriever:
                 checkpoint_idx = checkpoint_data.get('last_processed_idx', 0) + 1
                 checkpoint_timestamp = checkpoint_data.get('timestamp', 'unknown time')
                 total_rows = checkpoint_data.get('total_rows', 0)
-                
-                print(f"\n{'='*60}")
-                print(f"CHECKPOINT FOUND")
-                print(f"{'='*60}")
+
+                print(f"\n{'=' * 60}")
+                print("CHECKPOINT FOUND")
+                print(f"{'=' * 60}")
                 print(f"Checkpoint created: {checkpoint_timestamp}")
                 print(f"Progress: {checkpoint_idx} / {total_rows} rows")
                 print(f"Remaining: {total_rows - checkpoint_idx} rows")
-                print(f"{'='*60}")
-                
+                print(f"{'=' * 60}")
+
                 response = input("Resume from checkpoint? (y/n): ").strip().lower()
-                
+
                 if response in ['y', 'yes']:
                     start_idx = checkpoint_idx
                     print(f"Resuming from row {start_idx}")
                 else:
                     print("Starting from beginning (checkpoint will be overwritten)")
-                    # Delete old checkpoint
                     Path(checkpoint_file).unlink()
                     partial_file = Path(checkpoint_file).with_suffix('.partial.json')
                     if partial_file.exists():
                         partial_file.unlink()
                     start_idx = 0
-                
+
             except Exception as e:
                 print(f"Warning: Could not load checkpoint: {e}. Starting from beginning.")
                 start_idx = 0
-        
+
         # Sort results by corpusid to group papers together for efficiency
         print("Sorting results by corpusid for efficient paper loading...")
         results = results.sort_values('corpusid').reset_index(drop=True)
-        
+
         # Get unique corpus IDs
         unique_corpusids = results['corpusid'].unique().tolist()
-        
+
         print(f"Fetching metadata for {len(unique_corpusids)} unique papers...")
-        
+
         # Fetch all metadata in batches
-        all_metadata = {}
+        all_metadata: Dict[int, Dict[str, Any]] = {}
         for i in range(0, len(unique_corpusids), batch_size):
             batch_ids = unique_corpusids[i:i + batch_size]
             metadata = self.get_paper_metadata(batch_ids)
             all_metadata.update(metadata)
-        
+
         print(f"Retrieved metadata for {len(all_metadata)} papers")
-        
-        # Add filename to results for grouping
-        results['_filename'] = results['corpusid'].map(lambda cid: all_metadata.get(cid, {}).get('filename', ''))
-        
-        # Group by filename to minimize file reads (multiple papers can be in same file)
-        print("Grouping results by filename for optimal file access...")
-        results_sorted = results.sort_values(['_filename', 'corpusid']).reset_index(drop=True)
-        
+
+        # Detect mongo-direct mode (your get_paper_metadata must set mode="mongo")
+        has_mongo_direct = any(m.get("mode") == "mongo" for m in all_metadata.values())
+
+        # Decide grouping strategy
+        if has_mongo_direct:
+            print("Detected Mongo-direct mode (no S2ORC filenames). Grouping by corpusid...")
+            results_sorted = results.copy()
+            grouped_by_file = [(None, results_sorted)]  # one pseudo-group
+        else:
+            # Add filename to results for grouping
+            results['_filename'] = results['corpusid'].map(lambda cid: all_metadata.get(cid, {}).get('filename', ''))
+
+            print("Grouping results by filename for optimal file access...")
+            results_sorted = results.sort_values(['_filename', 'corpusid']).reset_index(drop=True)
+            grouped_by_file = results_sorted.groupby('_filename', sort=False)
+
         # Initialize result lists
         texts = [''] * len(results_sorted)
         context_before = ([''] * len(results_sorted)) if include_context else None
         context_after = ([''] * len(results_sorted)) if include_context else None
-        
-        # Group by filename for efficient processing
-        grouped_by_file = results_sorted.groupby('_filename', sort=False)
+
         files_processed = 0
         papers_processed = 0
         papers_in_file = 0
-        
-        for filename, file_group in tqdm(grouped_by_file, desc="Processing files", total=len(grouped_by_file)):
-            if not filename:  # Skip if no filename (missing metadata)
+
+        # Main processing loop
+        total_groups = len(grouped_by_file) if hasattr(grouped_by_file, "__len__") else len(list(grouped_by_file))
+        for filename, file_group in tqdm(grouped_by_file, desc="Processing files", total=total_groups):
+            # In S2ORC mode, skip empty filename groups (missing metadata)
+            if filename is not None and not filename:
                 continue
-            
+
             # Skip if before checkpoint
-            if file_group.index[0] < start_idx:
+            if len(file_group.index) > 0 and file_group.index[0] < start_idx:
                 continue
-            
-            # Now group by corpusid within this file
+
+            # Group by corpusid within this group
             grouped_by_corpusid = file_group.groupby('corpusid', sort=False)
-            
+
             for corpusid, corpus_group in grouped_by_corpusid:
                 corpusid = int(corpusid)
-                
-                # Load paper once for all rows with this corpusid
+
                 if corpusid not in all_metadata:
                     continue
-                
+
                 paper = self.load_paper(corpusid, all_metadata[corpusid])
                 papers_in_file += 1
                 papers_processed += 1
-                
+
                 if paper is None:
                     print(f"  WARNING: Failed to load paper {corpusid}")
                     continue
-                
-                # Debug first paper in first file
+
+                # Debug first paper
                 if files_processed == 0 and papers_in_file == 1:
                     print(f"\n  DEBUG: First paper loaded successfully")
                     print(f"    Corpus ID: {corpusid}")
                     print(f"    Paper keys: {list(paper.keys())}")
-                    if 'content' in paper:
+                    if 'content' in paper and isinstance(paper['content'], dict):
                         print(f"    Content keys: {list(paper['content'].keys())}")
                         if 'text' in paper['content']:
-                            print(f"    Text length: {len(paper['content']['text'])}")
-                
-                # Process all rows for this paper
+                            try:
+                                print(f"    Text length: {len(paper['content']['text'])}")
+                            except Exception:
+                                pass
+                    if 'text' in paper and isinstance(paper.get('text'), str):
+                        print(f"    Paper['text'] length: {len(paper['text'])}")
+
                 row_count = 0
                 for idx, row in corpus_group.iterrows():
                     row_count += 1
-                    
+
                     # Handle both sentence_indices and paragraph_indices
                     if 'sentence_indices' in row:
                         indices = row['sentence_indices']
@@ -549,25 +580,22 @@ class TextRetriever:
                     else:
                         print(f"  WARNING: Row {idx} has no sentence_indices or paragraph_indices")
                         continue
-                    
-                    # Debug first row of first paper
+
                     if files_processed == 0 and papers_in_file == 1 and row_count == 1:
                         print(f"\n  DEBUG: First row of first paper")
                         print(f"    Row index: {idx}")
                         print(f"    Indices type: {indices_type}")
                         print(f"    Indices value: {indices}")
                         print(f"    Indices type (Python): {type(indices)}")
-                    
+
                     # Parse indices
                     try:
                         if isinstance(indices, str):
                             indices = json.loads(indices)
-                        
+
                         if indices is None or (hasattr(indices, '__len__') and len(indices) < 2):
-                            if files_processed == 0 and papers_in_file == 1 and row_count == 1:
-                                print(f"    WARNING: Indices invalid (None or too short)")
                             continue
-                        
+
                         if isinstance(indices, (list, tuple)):
                             start_idx_text, end_idx_text = int(indices[0]), int(indices[1])
                         elif isinstance(indices, dict):
@@ -576,22 +604,15 @@ class TextRetriever:
                             elif 'start' in indices and 'end' in indices:
                                 start_idx_text, end_idx_text = int(indices['start']), int(indices['end'])
                             else:
-                                if files_processed == 0 and papers_in_file == 1 and row_count == 1:
-                                    print(f"    WARNING: Dict indices missing required keys: {list(indices.keys())}")
                                 continue
                         else:
-                            if files_processed == 0 and papers_in_file == 1 and row_count == 1:
-                                print(f"    WARNING: Unexpected indices type: {type(indices)}")
                             continue
-                            
-                    except (KeyError, IndexError, ValueError, TypeError, json.JSONDecodeError) as e:
-                        if files_processed == 0 and papers_in_file == 1 and row_count == 1:
-                            print(f"    ERROR parsing indices: {e}")
+
+                    except (KeyError, IndexError, ValueError, TypeError, json.JSONDecodeError):
                         continue
-                    
-                    # Extract text (with debug for first row)
+
                     debug_extraction = (files_processed == 0 and papers_in_file == 1 and row_count == 1)
-                    
+
                     extracted = self.extract_text(
                         paper, start_idx_text, end_idx_text,
                         include_context=include_context,
@@ -599,43 +620,38 @@ class TextRetriever:
                         context_mode=context_mode,
                         debug=debug_extraction
                     )
-                    
+
                     texts[idx] = extracted.get("text", "")
                     if include_context:
                         context_before[idx] = extracted.get("context_before", "")
                         context_after[idx] = extracted.get("context_after", "")
-                    
-                    if debug_extraction:
-                        print(f"    Result stored at index {idx}")
-                        print(f"    Text length: {len(texts[idx])}")
-                    
-                    # Save checkpoint periodically (every N papers)
+
                     if checkpoint_file and papers_processed % save_interval == 0:
-                        self._save_checkpoint(checkpoint_file, idx, results_sorted, texts,
-                                             context_before, context_after, include_context)
-            
-            # Update file counter
+                        self._save_checkpoint(
+                            checkpoint_file, idx, results_sorted, texts,
+                            context_before, context_after, include_context
+                        )
+
             files_processed += 1
             papers_in_file = 0
-        
-        # Remove temporary filename column
-        results_sorted = results_sorted.drop(columns=['_filename'])
-        
+
+        # Clean up temp filename column (only if S2ORC mode created it)
+        if '_filename' in results_sorted.columns:
+            results_sorted = results_sorted.drop(columns=['_filename'])
+
         # Add text columns to results
         results_sorted['text'] = texts
-        
         if include_context:
             results_sorted['context_before'] = context_before
             results_sorted['context_after'] = context_after
-        
+
         print(f"\nExtracted text for {sum(1 for t in texts if t)} / {len(texts)} results")
-        print(f"Total files accessed: {files_processed}")
-        
-        # Clean up checkpoint file if successful
+        print(f"Total groups processed: {files_processed}")
+
         if checkpoint_file and Path(checkpoint_file).exists():
             Path(checkpoint_file).unlink()
             print(f"Removed checkpoint file: {checkpoint_file}")
-        
+
         return results_sorted
     
     def _save_checkpoint(self, checkpoint_file: str, last_idx: int, 
@@ -949,7 +965,7 @@ if __name__ == '__main__':
     from pathlib import Path
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file = str(Path(log_dir) / f'Logs/retrieve_query_texts_{timestamp}.log')
+    log_file = str(Path(log_dir) / f'retrieve_query_texts_{timestamp}.log')
     tee = Tee(log_file)
     sys.stdout = tee
     
