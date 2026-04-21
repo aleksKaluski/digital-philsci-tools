@@ -59,8 +59,9 @@ import numpy as np
 from pymilvus import connections, MilvusClient, db, DataType
 from pymongo import MongoClient
 
-from model_adapter import UnifiedEmbedder
+from scripts.model_adapter import UnifiedEmbedder
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 class Tee:
     """Redirect stdout to both terminal and log file."""
@@ -1396,7 +1397,7 @@ if __name__ == '__main__':
     
     # Parse args first to get log directory
     temp_args = sys.argv[1:]
-    log_dir = '.'
+    log_dir = '..'
     for i, arg in enumerate(temp_args):
         if arg == '--log-dir' and i + 1 < len(temp_args):
             log_dir = temp_args[i + 1]

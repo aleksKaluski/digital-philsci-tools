@@ -28,14 +28,14 @@ Usage:
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection sentences \\
-        --queries queries.txt \\
+        --queries research_queries.txt \\
         --output results.json
     
     # Query paragraph collection with custom parameters
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection paragraphs \\
-        --queries queries.txt \\
+        --queries research_queries.txt \\
         --limit 100 \\
         --output results.json
     
@@ -43,7 +43,7 @@ Usage:
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection sentences \\
-        --queries queries.txt \\
+        --queries research_queries.txt \\
         --use-rrf \\
         --rrf-output-size 1000 \\
         --rrf-k 60 \\
@@ -53,7 +53,7 @@ Usage:
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection sentences \\
-        --queries queries.txt \\
+        --queries research_queries.txt \\
         --model allenai/specter2_base \\
         --output results.json
     
@@ -61,7 +61,7 @@ Usage:
     python query_subcorpus.py \\
         --db-name my_subcorpus \\
         --collection sentences \\
-        --queries queries.txt \\
+        --queries research_queries.txt \\
         --model allenai/specter2_base \\
         --adapter allenai/specter2_adhoc_query \\
         --output results.json
@@ -69,18 +69,15 @@ Usage:
 
 import argparse
 import json
-import sys
-from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import datetime
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 from pymilvus import connections, MilvusClient, db
-from tqdm import tqdm
 
-from model_adapter import UnifiedEmbedder
+from scripts.model_adapter import UnifiedEmbedder
 
 
 class Tee:
@@ -557,14 +554,14 @@ Examples:
   python query_subcorpus.py \\
     --db-name my_subcorpus \\
     --collection sentences \\
-    --queries queries.txt \\
+    --queries research_queries.txt \\
     --output results.json
   
   # Query paragraph collection with more results
   python query_subcorpus.py \\
     --db-name my_subcorpus \\
     --collection paragraphs \\
-    --queries queries.txt \\
+    --queries research_queries.txt \\
     --limit 500 \\
     --output results.csv
   
@@ -572,7 +569,7 @@ Examples:
   python query_subcorpus.py \\
     --db-name my_subcorpus \\
     --collection sentences \\
-    --queries queries.txt \\
+    --queries research_queries.txt \\
     --model sentence-transformers/all-MiniLM-L6-v2 \\
     --output results.json
         """
@@ -788,7 +785,7 @@ if __name__ == '__main__':
     # Parse args first to get log directory
     import sys
     temp_args = sys.argv[1:]
-    log_dir = '.'
+    log_dir = '..'
     for i, arg in enumerate(temp_args):
         if arg == '--log-dir' and i + 1 < len(temp_args):
             log_dir = temp_args[i + 1]
