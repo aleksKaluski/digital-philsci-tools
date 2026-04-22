@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 import pickle
 from typing import List, Dict, Optional, Tuple
 
-DATA_PATH = '/home/wikror/gdrive/corpus-study/compositionality-data'
+# provide path to your folder  with seed papers
+DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/src/files/operational_files'
 
 # ============================================================================
 # CORE INDIVIDUAL QUERY FUNCTION
