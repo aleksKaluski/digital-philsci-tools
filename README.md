@@ -129,3 +129,14 @@ python query_subcorpus.py `
   --model multi-qa-MiniLM-L6-cos-v1 `
   --no-gpu
 ```
+
+## Full analysis step by step
+Assuming that your environment is not set yet, you have to first connect with Mongo and Milvus. 
+
+```commandline
+python query_milvus_rrf.py \
+    --embeddings paper_embeddings.pkl \
+    --output-prefix data/subcorpus \
+    --top-k 100 \
+    --output-size 10
+```

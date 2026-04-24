@@ -1397,7 +1397,7 @@ if __name__ == '__main__':
     
     # Parse args first to get log directory
     temp_args = sys.argv[1:]
-    log_dir = '..'
+    log_dir = ''
     for i, arg in enumerate(temp_args):
         if arg == '--log-dir' and i + 1 < len(temp_args):
             log_dir = temp_args[i + 1]
