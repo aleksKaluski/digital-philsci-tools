@@ -8,7 +8,7 @@ import pickle
 from typing import List, Dict, Optional, Tuple
 
 # provide path to your folder  with seed papers
-DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/src/files/operational_files'
+DATA_PATH = '/mnt/c/Python_files/digital-philsci-tools/files/operational_files'
 
 # ============================================================================
 # CORE INDIVIDUAL QUERY FUNCTION

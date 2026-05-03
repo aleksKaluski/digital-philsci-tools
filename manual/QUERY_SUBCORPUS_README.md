@@ -36,14 +36,14 @@ Lines starting with `#` are treated as comments and ignored.
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --output results.json
 
 # Query paragraph collection
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection paragraphs \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --output results.json
 ```
 
@@ -88,7 +88,7 @@ python query_subcorpus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection paragraphs \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --limit 5000 \
     --output results.csv
 ```
@@ -99,7 +99,7 @@ python query_subcorpus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --model sentence-transformers/all-mpnet-base-v2 \
     --metric-type IP \
     --output results.parquet
@@ -111,7 +111,7 @@ python query_subcorpus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection paragraphs \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --output-fields corpus_id paragraph_idx start_sent end_sent text \
     --output results.json
 ```
@@ -122,7 +122,7 @@ python query_subcorpus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --no-gpu \
     --output results.json
 ```
@@ -135,7 +135,7 @@ Use RRF to aggregate results across multiple queries, finding documents that are
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --use-rrf \
     --rrf-output-size 1000 \
     --rrf-k 60 \
@@ -240,7 +240,7 @@ python build_subcorpus_milvus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --output results.json
 ```
 
@@ -259,7 +259,7 @@ client.connect()
 client.load_encoder()
 
 # Load and encode queries
-queries = load_queries_from_file("queries.txt")
+queries = load_queries_from_file("research_queries.txt")
 embeddings = client.encode_queries(queries)
 
 # Query collection

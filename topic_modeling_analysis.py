@@ -108,7 +108,7 @@ from hdbscan import HDBSCAN
 import gensim.corpora as corpora
 from gensim.models.coherencemodel import CoherenceModel
 
-from scripts.model_adapter import UnifiedEmbedder
+from model_adapter import UnifiedEmbedder
 
 # Milvus support (optional)
 try:
