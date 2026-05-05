@@ -155,11 +155,12 @@ Use Reciprocal Rank Fusion (RRF) to identify papers semantically related to your
 **Script:** `query_milvus_rrf.py`
 
 ```pycon
-python query_milvus_rrf.py`
-    --queries files/operational_files/seed_papers.txt`
-    --output-prefix data/subcorpus`
-    --top-k 10000`
-    --rrf-k 60
+python query_milvus_rrf.py \
+  --output-prefix data/subcorpus \
+  --top-k 100 \
+  --rrf-k 60 \
+  --embeddings-file files/operational_files/paper_embeddings.pkl \
+  --log-dir logs
 ```
 
 **Output:** Pickle file containing:

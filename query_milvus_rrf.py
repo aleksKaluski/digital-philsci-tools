@@ -48,6 +48,7 @@ class Tee:
 MILVUS_IP = "localhost"
 MILVUS_PORT = 19530
 DB_NAME = "s2orcFullPaperEmbeddings"
+# DB_NAME = "default"
 COLLECTION_NAME = "paperEmbeddings"
 
 # RRF parameter (typically 60 in literature)
@@ -465,6 +466,7 @@ def main():
         epilog="""
 Examples:
     # Use all papers from embeddings file as seeds
+    s
     python query_milvus_rrf.py --embeddings-file data/paper_embeddings.pkl --output-size 1000
     
     # Use specific seed file (optional)
