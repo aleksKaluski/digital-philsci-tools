@@ -752,7 +752,7 @@ python build_subcorpus_milvus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --model sentence-transformers/all-mpnet-base-v2 \
     --output results.json
 ```
@@ -788,7 +788,7 @@ python build_subcorpus_milvus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --model allenai/specter2_base \
     --output results.json
 
@@ -985,7 +985,7 @@ python build_subcorpus_milvus.py \
 python query_subcorpus.py \
     --db-name my_subcorpus \
     --collection sentences \
-    --queries queries.txt \
+    --queries research_queries.txt \
     --output results.json \
     --no-gpu
 ```

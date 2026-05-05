@@ -59,7 +59,7 @@ import numpy as np
 from pymilvus import connections, MilvusClient, db, DataType
 from pymongo import MongoClient
 
-from scripts.model_adapter import UnifiedEmbedder
+from model_adapter import UnifiedEmbedder
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 

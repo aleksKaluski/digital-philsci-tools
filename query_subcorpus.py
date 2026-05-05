@@ -77,7 +77,7 @@ import numpy as np
 import pandas as pd
 from pymilvus import connections, MilvusClient, db
 
-from scripts.model_adapter import UnifiedEmbedder
+from model_adapter import UnifiedEmbedder
 
 
 class Tee:

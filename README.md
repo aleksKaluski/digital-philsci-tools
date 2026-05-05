@@ -1,142 +1,305 @@
-# Digital Philosophical Tools
-This repository plays with the code designed for Wiktor Rorot's PhD, _Scale-Free Communication? An investigation of the use
-of the concept of "communication" in biology and cognitive sciences._ The code is a text processing pipeline based on BERTopic,
-enriched with the integration of external tools such as MongoDB and Milvus. However, in order to play with it, we need
-to create mock instances of these objects with Docker. Here is how to do it:
+# Digital Philosophical Tools Guide (Linux)
 
-## Create Initial Python Environment
-First, make sure that you are using Python 3.11 by using:
-`python --version`. After that we may activate the environment by using the following commands:
-1. `py -3.11 -m venv .venv`
-2. `.\.venv\Scripts\Activate.ps1`
-3. `python --version`\
-After than you should upgrade pip and install setuptool. 
-4. `python -m pip install --upgrade pip wheel`
-5. `pip install "setuptools<82"`\
-Finally, install requirements. 
-6. `python -m pip install -r requirements.txt`\
-Then, make the sanity check.
-7. `python -c "import sys; print(sys.executable)"`
-8. `python -c "import pymongo; print('pymongo ok')"`
-9. `python -c "import pymilvus; print('pymilvus ok')"`
+This repository contains the codebase designed for Wiktor Rorot's PhD project: _Scale-Free Communication? An investigation of the use of the concept of "communication" in biology and cognitive sciences._ 
 
-## Docker for MongoDB
-1. Start the container: `docker-compose up -d` (remember to start Docker Desktop ;))
-2. Check if it's running: `docker-compose ps`
-3. Verify that the MongoDB container works: \
-`python -c "from pymongo import MongoClient; client = MongoClient('localhost', 27017); client.server_info(); print('MongoDB connected!')"`
-4. Verify that Milvus conteiner works: \
-`python -c "from pymilvus import connections; connections.connect(host='localhost', port='19530'); print('Milvus connected!')"`
-5. Make a simple test of MongoDB functionalities to verify the container. Populate it with a mock dataset of neopositivistic papers and test it! \
-`python mock_testing\mongo_simple_test.py` \
-You should see: 
+The project features a text-processing pipeline based on **BERTopic**, integrated with **MongoDB** and **Milvus**. To run the analysis locally, we use Docker to create mock instances of these databases.
+
+## 1. Create Initial Python Environment
+
+First, ensure you are using **Python 3.11**. Check your version with:
+`python3 --version`. 
+
+Follow these steps to set up your virtual environment:
+
+1. **Create the environment:** `python3 -m venv .venv`
+2. **Activate it:** `source .venv/bin/activate`
+3. **Verify Python:** `python --version`
+4. **Upgrade core tools:** `pip install --upgrade pip wheel`
+5. **Install specific setuptools:** `pip install "setuptools<82"`
+6. **Install requirements:** `pip install -r requirements.txt`
+
+### Sanity Check
+Run these commands to ensure the environment is correctly configured:
+* `python -c "import sys; print(sys.executable)"`
+* `python -c "import pymongo; print('pymongo ok')"`
+* `python -c "import pymilvus; print('pymilvus ok')"`
+
+---
+
+## 2. Working with Docker Containers
+#### MongoDB and Milvus Setup
+
+1. **Start the containers:** `docker-compose up -d`
+2. **Check status:** `docker-compose ps`
+3. **Verify MongoDB connectivity:**
+   `python -c "from pymongo import MongoClient; client = MongoClient('localhost', 27017); client.server_info(); print('MongoDB connected!')"`
+4. **Verify Milvus connectivity:**
+   `python -c "from pymilvus import connections; connections.connect(host='localhost', port='19530'); print('Milvus connected!')"`
+
+#### Mock Testing
+Populate the database with a mock dataset of neopositivistic papers to verify functionality:
+
+* **Test MongoDB:** `python mock_testing/mongo_simple_test.py`
+* **Test Milvus:** `python mock_testing/milvus_simple_test.py`
+
+> **Note:** To check if the ports are open on Ubuntu, you can use `nc` (netcat):
+> * `nc -zv localhost 19530`
+> * `nc -zv localhost 27017`
+
+#### Database Cleanup
+To drop the mock databases and start fresh:
+* **Drop MongoDB:** `python -c "from pymongo import MongoClient; client = MongoClient('localhost', 27017); client.drop_database('papers_db'); print('Database dropped')"`
+* **Drop Milvus:** `python -c "from pymilvus import connections, utility; connections.connect(host='localhost', port='19530'); utility.drop_collection('neopositivistic_papers'); print('Collection dropped')"`
+
+---
+
+## 3. Creating the BERT Environment
+
+You will need **Conda** installed for this section (`conda --version`). 
+
+1. **Create a directory for your environments:**
+   `mkdir -p ~/conda_envs`
+2. **Create the environment:**
+   `conda env create -f environment_bertopic.yml --prefix ~/conda_envs/bertopic`
+   *(This typically takes 5–15 minutes.)*
+
+**Important:** To avoid conflicts between your `.venv` and your Conda environment, ensure you `deactivate` the standard virtual environment before activating Conda:
+
+```bash
+deactivate
+conda activate ~/conda_envs/bertopic
+# Verify the setup
+python -c "from topic_modeling_analysis import *; print('✅ Success')"
 ```
-[+] Inserted 3 papers. 
-[+] Created corpusid index 
-[+] Found paper: Verificationism Then and Now 
-[+] Total papers in collection: 36 
-[SUCCESS] Total runtime: 0.02 seconds
-```
 
-6. Make a simple test of Milvus functionalities to verify the containter. \
-`python mock_testing/milvus_simple_test.py`
+---
 
-You should see: 
-```
-[+] Inserted 3 papers.
-[+] Created vector index on 'embedding'.
-[+] Found nearest paper: Verificationism Then and Now (distance=0.0000)
-[+] Total papers in collection: 3
-[SUCCESS] Total runtime: 6.83 seconds
-```
+## 4. Running the Analysis
 
-To clean the database and check it once again use: \
-`python -c "from pymongo import MongoClient; client = MongoClient('localhost', 27017); client.drop_database('papers_db'); print('Database dropped')"`\
+If you’ve made it this far, you’ve done the hard part! Now we can run the analysis on a mock corpus.
 
-`python -c "from pymilvus import connections, utility; connections.connect(host='localhost', port='19530'); utility.drop_collection('neopositivistic_papers'); print('Collection dropped')"`
+### Prepare the Mock Data
+Switch back to your original environment for database preparation:
+1. `conda deactivate`
+2. `source .venv/bin/activate`
+3. **Initialize MongoDB:** `python mock_testing/create_mock_mongo_corpus.py`
+4. **Initialize Milvus:** `python mock_testing/create_mock_milvus_corpus.py`
 
-If you would like to check the connection, you can use:\
-`Test-NetConnection -ComputerName localhost -Port 19530`\
-`Test-NetConnection -ComputerName localhost -Port 27017`
+### Build the Subcorpus
+Run the following command to initialize the Milvus subcorpus. Note the use of `\` for line continuations in Ubuntu/Bash:
 
-## Creating BERT Environment
-First, you have to have conda installed (verify by using `conda --version`). Then, follow the steps:
-1. Create brand-new special folder for keeping you bertopic environment.\
-`mkdir C:\Users\your_name\conda_envs`
-2. Create the environment:\
-`conda env create -f environment_bertopic.yml --prefix C:\Users\your_name\conda_envs\bertopic`\
-It should take 5-15 mins.\
-At this point you face a danger of mixing your conda environment
-with your normal `(.venv)` environment. If you see sth like that:  `(.venv) PS C:\Python_files\digital-philsci-tools`
-you should avoid mixing by deactivating the `(.venv)`. Use `deactivate` and then
-`conda activate C:\Users\your_name\conda_envs\bertopic`. After that I advise to verify this step by using
-`python -c "from topic_modeling_analysis import *; print('✅ Success')"`                                                                                 
-
-## Last Steps
-All right! If you read this, you are a very brave person! You have established your environment, and now you can 
-run your analysis on a mock corpus and test the actual program. It was hard, wasn't it? :) 
-
-Now, let's create mock objects! As you recall, we deactivated `(.venv)` for the sake of clarity. Now it's time
-to bring it back.
-1. Deactivate conda: `conda deactivate`
-2. Activate `(.venv)`: `.\.venv\Scripts\Activate.ps1`
-3. Verify. You should se Python 3.11: `python --version`
-
-Finally, we can create mock database in MongoDB:\
-`python mock_testing\create_mock_mongo_corpus.py`
-
-Then, create Milvus database:\
-`python mock_testing\create_mock_milvus_corpus.py` and then run `python -c "from pymilvus import connections, db; connections.connect(host='localhost', port=19530); print('dbs:', db.list_database())"`
-to be sure that Milvus includes **mock_philsci**
-
-## Running a Complete Analysis on Mock Database
-To intialize Milvus corpus, run: 
-```pycon
-python build_subcorpus_milvus.py 
-  --subcorpus mock_testing/data/micro_subcorpus.pkl 
-  --s2orc-path . 
-  --db-name micro_subcorpus 
-  --sentence-collection sentences 
-  --paragraph-collection paragraphs 
-  --model multi-qa-MiniLM-L6-cos-v1 
-  --no-gpu 
-  --mongo-db-name mock_philsci 
+```bash
+python build_subcorpus_milvus.py \
+  --subcorpus mock_testing/data/micro_subcorpus.pkl \
+  --s2orc-path . \
+  --db-name micro_subcorpus \
+  --sentence-collection sentences \
+  --paragraph-collection paragraphs \
+  --model multi-qa-MiniLM-L6-cos-v1 \
+  --no-gpu \
+  --mongo-db-name mock_philsci \
   --mongo-collection-name papers
 ```
-To check if you have the right amount of papers loaded use:
 
-```pycon
-python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); print('sentences', c.get_collection_stats('sentences')); print('paragraphs', c.get_collection_stats('paragraphs'))"  
+### Verification & Troubleshooting
+To check if the papers were loaded correctly:
+```bash
+python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); print('sentences', c.get_collection_stats('sentences')); print('paragraphs', c.get_collection_stats('paragraphs'))"
 ```
 
-It might be the case that you resumed the work from the checkpoint and then accidentally didn't load the papers in place.
-In this case delete the checkpoint `del subcorpus_checkpoint.pkl -ErrorAction SilentlyContinue` and run drop empty collections
-
-```pycon
-python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); \
-[print('dropping', name) or c.drop_collection(name) for name in ['sentences','paragraphs'] if c.has_collection(name)]; print('done')"
+If you need to restart from scratch because a checkpoint failed, delete the checkpoint and drop the empty collections:
+```bash
+rm -f subcorpus_checkpoint.pkl
+python -c "from pymilvus import connections, db, MilvusClient; connections.connect(alias='default', host='localhost', port='19530'); db.using_database('micro_subcorpus'); c=MilvusClient(uri='http://localhost:19530', token='root:Milvus', db_name='micro_subcorpus'); [c.drop_collection(name) for name in ['sentences','paragraphs'] if c.has_collection(name)]; print('done')"
 ```
 
-And re-run making corpus from skratch. 
+### Final Query
+Once the corpus is ready, use `query_subcorpus.py` to run your analysis:
 
-```pycon
-python query_subcorpus.py `
-  --db-name micro_subcorpus `
-  --collection paragraphs `
-  --queries queries.txt `
-  --output micro_query_results.json `
-  --limit 50 `
-  --model multi-qa-MiniLM-L6-cos-v1 `
+```bash
+python query_subcorpus.py \
+  --db-name micro_subcorpus \
+  --collection paragraphs \
+  --queries queries.txt \
+  --output micro_query_results.json \
+  --limit 50 \
+  --model multi-qa-MiniLM-L6-cos-v1 \
   --no-gpu
 ```
 
-## Full analysis step by step
-Assuming that your environment is not set yet, you have to first connect with Mongo and Milvus. 
+## Real Processing Workflow (in Linux)
 
-```commandline
-python query_milvus_rrf.py \
-    --embeddings paper_embeddings.pkl \
-    --output-prefix data/subcorpus \
-    --top-k 100 \
-    --output-size 10
+#### Step 1: Identify Seed Papers
+Manually curate or automatically identify seed papers that represent your research topic of interest.
+
+**Input formats:**
+- List of S2ORC corpus IDs
+- List of paper titles/abstracts
+- Bibliography file (BibTeX, RIS)
+
+**Example seed papers file** (`seed_papers.txt`):
 ```
+34474804
+3066540
+16056957
+14559809
+10509722
+```
+The script `s2_api_requests.py` offers functionalities to download the metadata and embeddings from the Semantic Scholar API for further processing. Alternatively, a local database from the `embeddings` dataset can be used.
+
+
+
+#### Step 2: Identify Seed Papers
+Use Reciprocal Rank Fusion (RRF) to identify papers semantically related to your seed papers.
+
+**Script:** `query_milvus_rrf.py`
+
+```pycon
+python query_milvus_rrf.py`
+    --queries files/operational_files/seed_papers.txt`
+    --output-prefix data/subcorpus`
+    --top-k 10000`
+    --rrf-k 60
+```
+
+**Output:** Pickle file containing:
+- `corpus_ids`: List of S2ORC corpus IDs in the subcorpus
+- `scores`: RRF scores for each paper
+- `embeddings`: Full-paper embeddings (if available)
+- `metadata`: Additional information
+
+**Key Parameters:**`
+- `--output-size`: Number of results to output (default: 1000)
+- `--top-k`: Number of papers to retrieve per query (default: 10000)
+- `--rrf-k`: RRF constant (default: 60, lower = more emphasis on top ranks)
+- `--queries`: File with queries (one per line)
+- `--embeddings-file`: File with full paper embeddings for the queries, can downloaded from S2 API with `s2_api_requests.py`
+
+
+#### Step 3: Create Milvus Database
+Build searchable vector databases at sentence and paragraph level.
+
+**Script:** `build_subcorpus_milvus.py`
+
+```pycon
+python build_subcorpus_milvus.py` 
+    --subcorpus subcorpus_20251112.pkl`
+    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/`
+    --db-name subcorpus`
+    --sentence-collection sentences`
+    --paragraph-collection paragraphs`
+    --paragraph-size 10 `
+    --model multi-qa-MiniLM-L6-cos-v1
+```
+
+**Key Parameters:**
+- `--subcorpus`: Pickle file from Step 2
+- `--s2orc-path`: Path to S2ORC corpus directory
+- `--db-name`: Name for Milvus database
+- `--sentence-collection`: Collection name for sentences
+- `--paragraph-collection`: Collection name for paragraphs
+- `--paragraph-size`: Sentences per paragraph if no annotations (default: 10)
+- `--model`: Sentence transformer model (default: multi-qa-MiniLM-L6-cos-v1)
+- `--index-type`: Vector index type (IVF_PQ, IVF_FLAT, HNSW)
+- `--checkpoint-file`: File for resumable processing
+- `--no-language-filter`: Disable English-only filtering
+
+**What it does:**
+1. Loads subcorpus corpus IDs from pickle file
+2. Retrieves papers from S2ORC using MongoDB indices and indexed gzip
+3. Segments papers into sentences (using spaCy or custom sentencizer)
+4. Groups sentences into paragraphs (using annotations or fixed-size chunks)
+5. Generates embeddings using sentence-transformers
+6. **Stores character indices** (not text) for each sentence/paragraph to save space
+7. Inserts into Milvus collections with vector indices
+
+
+**Database Schema:**
+
+**Sentence Collection:**
+```
+- id (primary key, auto-generated)
+- corpusid (int64)
+- sentence_number (int64)
+- sentence_indices (array[int64, 2])  # [start_char, end_char]
+- vector (float vector, dim=384)
+- rrf_score (float, optional)
+```
+
+**Paragraph Collection:**
+```
+- id (primary key, auto-generated)
+- corpusid (int64)
+- paragraph_number (int64)
+- paragraph_indices (array[int64, 2])  # [start_char, end_char]
+- sentence_start (int64)  # First sentence number
+- sentence_end (int64)    # Last sentence number
+- vector (float vector, dim=384)
+- rrf_score (float, optional)
+```
+
+
+### Step 4: Query the Subcorpus
+Search the subcorpus using natural language queries.
+
+**Script:** `query_subcorpus.py`
+
+```pycon
+python query_subcorpus.py` 
+    --db-name compositionality_subcorpus`
+    --collection sentences`
+    --queries files/operational_files/research_queries.txt`
+    --output query_results.json`
+    --limit 1000`
+    --metric-type COSINE
+```
+
+**Queries file format** (`research_queries.txt`):
+```
+# Research questions (lines starting with # are comments)
+How does compositionality emerge in neural language models?
+What computational mechanisms support semantic composition?
+Evidence for compositional processing in the human brain
+
+# Hypothesis statements
+Neural networks learn compositional representations through hierarchical processing.
+```
+
+**Output format** (JSON):
+```json
+[
+  {
+    "query_idx": 0,
+    "query": "How does compositionality emerge in neural language models?",
+    "rank": 1,
+    "distance": 0.8543,
+    "corpus_id": 12345678,
+    "collection": "sentences",
+    "sentence_number": 42,
+    "sentence_indices": [1523, 1687]
+  },
+  ...
+]
+```
+
+## Citing and Credits
+```bibtex
+@phdthesis{rorot_scalefree_2025,
+  title = {Scale-{{Free Communication}}? {{An}} Investigation of the Use of the Concept "Communication" in Biology and Cognitive Sciences},
+  author = {Rorot, Wiktor},
+  year = 2025,
+  month = dec,
+  address = {Warsaw},
+  langid = {english},
+  school = {University of Warsaw}
+}
+```
+
+The development of these tools was funded by the National Science Center (Poland) as part of Preludium grant 
+"Investigation of the use of the concept “communication” in biology and cognitive sciences" (2022/45/N/HS1/02434), 
+awarded to Wiktor Rorot (supervisor: Marcin Miłkowski) (project begun in February 2023, planned conclusion: July 2026).
+
+Published in 2025 by Wiktor Rorot, small improvements introduced by Aleksander Kałuski. 
+
+Code licensed under GNU GPL v3.
+
