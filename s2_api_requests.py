@@ -411,7 +411,7 @@ def fetch_corpus_ids_from_dois(rate_limit_delay=1):
     """
     timestamp = get_timestamp()
     headers = load_headers()
-    dois = load_dois('data/seed-paper-list.txt')
+    dois = load_dois('files/data/seed-paper-list.txt')
     
     if not dois:
         return

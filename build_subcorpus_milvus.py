@@ -324,10 +324,9 @@ class MilvusSubcorpusBuilder:
         """
 
         # micro mode
-        if self.mongo_client is not None and self.mongo_client is not None:
+        if self.mongo_db_name and self.mongo_collection_name:
             db_obj = self.mongo_client[self.mongo_db_name]
             collection = db_obj[self.mongo_collection_name]
-        # S2ORC mode
         else:
             collection = self.mongo_client.papers_db.papers
         
@@ -426,7 +425,7 @@ class MilvusSubcorpusBuilder:
         offset = file_location[1] if file_location else None
 
         # micro mode
-        if getattr(self, "mongo_db_name", None) and getattr(self, "mongo_collection_name", None):
+        if getattr(self, "mongo_db_name", None) is not None and getattr(self, "mongo_collection_name", None) is not None:
             try:
                 col = self.mongo_client[self.mongo_db_name][self.mongo_collection_name]
                 paper = col.find_one({"corpusid": corpus_id}, {"_id": 0})
@@ -1221,7 +1220,7 @@ Examples:
         help='Directory to save log files (default: current directory)'
     )
 
-    # for working with micro-corpus
+    # for working with micro-corpus (based on Docker)
     parser.add_argument('--mongo-db-name',
                         type=str,
                         help='If you want to work within a specific MongoDB database (e.g. micro_corpus), type it here.',

@@ -156,7 +156,8 @@ Use Reciprocal Rank Fusion (RRF) to identify papers semantically related to your
 
 ```pycon
 python query_milvus_rrf.py \
-  --output-prefix data/subcorpus \
+  --output-size 100 \
+  --output-prefix files/data/dp_mock \
   --top-k 100 \
   --rrf-k 60 \
   --embeddings-file files/operational_files/paper_embeddings.pkl \
@@ -183,14 +184,17 @@ Build searchable vector databases at sentence and paragraph level.
 **Script:** `build_subcorpus_milvus.py`
 
 ```pycon
-python build_subcorpus_milvus.py` 
-    --subcorpus subcorpus_20251112.pkl`
-    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/`
-    --db-name subcorpus`
-    --sentence-collection sentences`
-    --paragraph-collection paragraphs`
-    --paragraph-size 10 `
-    --model multi-qa-MiniLM-L6-cos-v1
+python build_subcorpus_milvus.py \
+    --subcorpus files/data/dp_mock_20260506_172313.pkl \
+    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/ \
+    --db-name dp_mock_subcorpus \
+    --sentence-collection dp_sentences \
+    --paragraph-collection dp_paragraphs \
+    --paragraph-size 10 \
+    --checkpoint-file files\data\dp_mock_checkpoint.pkl \
+    --model multi-qa-MiniLM-L6-cos-v1 \
+    --log-dir logs 
+
 ```
 
 **Key Parameters:**
@@ -246,13 +250,16 @@ Search the subcorpus using natural language queries.
 **Script:** `query_subcorpus.py`
 
 ```pycon
-python query_subcorpus.py` 
-    --db-name compositionality_subcorpus`
-    --collection sentences`
-    --queries files/operational_files/research_queries.txt`
-    --output query_results.json`
-    --limit 1000`
-    --metric-type COSINE
+python query_subcorpus.py \
+    --db-name dp_mock_subcorpus \
+    --collection dp_sentences \
+    --queries files/operational_files/research_queries.txt \
+    --output files/operational_files/query_results.json \
+    --model multi-qa-MiniLM-L6-cos-v1 \
+    --limit 100 \
+    --metric-type COSINE \
+    --use-rrf
+    --log-dir logs 
 ```
 
 **Queries file format** (`research_queries.txt`):
