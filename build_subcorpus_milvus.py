@@ -450,12 +450,14 @@ class MilvusSubcorpusBuilder:
         # SO2rc mode
         else:
             if filename is None or offset is None:
-                print(f"  ✗ Missing filename or offset for corpus ID {corpus_id}")
+                print(f" ✗ Missing filename or offset for corpus ID {corpus_id}")
                 return None
-
+            print(f"paper: {filename}")
+            print(f"offset: {offset}")
             paper = self.load_paper_from_gzip(filename, offset)
         
         if paper is None:
+            print("Paper is none!")
             return None
         
         # Language detection (filter out non-English papers)

@@ -185,7 +185,7 @@ Build searchable vector databases at sentence and paragraph level.
 
 ```pycon
 python build_subcorpus_milvus.py \
-    --subcorpus files/data/dp_mock_20260506_172313.pkl \
+    --subcorpus files/data/dp_mock_20260507_210223.pkl \
     --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/ \
     --db-name dp_mock_subcorpus \
     --sentence-collection dp_sentences \
@@ -193,6 +193,7 @@ python build_subcorpus_milvus.py \
     --paragraph-size 10 \
     --checkpoint-file files\data\dp_mock_checkpoint.pkl \
     --model multi-qa-MiniLM-L6-cos-v1 \
+    --embedding-dim 768 \
     --log-dir logs 
 
 ```
