@@ -186,7 +186,7 @@ Build searchable vector databases at sentence and paragraph level.
 ```pycon
 python build_subcorpus_milvus.py \
     --subcorpus files/data/dp_mock_20260507_210223.pkl \
-    --s2orc-path /path/to/s2orc/corpus/2024-08-06/s2orc/ \
+    --s2orc-path /mnt/corpus/semantic-scholar-corpus/corpus/2024-08-06/s2orc \
     --db-name dp_mock_subcorpus \
     --sentence-collection dp_sentences \
     --paragraph-collection dp_paragraphs \
@@ -273,6 +273,26 @@ Evidence for compositional processing in the human brain
 # Hypothesis statements
 Neural networks learn compositional representations through hierarchical processing.
 ```
+
+### Step 5: 
+Retrieve texts that you are looking for from the corpus.
+```pycon
+python retrieve_query_texts.py \
+    --input files/operational_files/query_results.json \
+    --output files/operational_files/results_with_text.json \
+    --s2orc-path /mnt/corpus/semantic-scholar-corpus/corpus/2024-08-06/s2orc \
+    --include-context \
+    --save-interval 100
+```
+
+### Step 6
+```pycon
+python visualize_subcorpus.py \
+    --subcorpus files/data/dp_mock_20260507_210223.pkl \
+    --seed-embeddings files/operational_files/paper_embeddings.pkl \
+    --output-dir visualizations/
+```
+
 
 **Output format** (JSON):
 ```json

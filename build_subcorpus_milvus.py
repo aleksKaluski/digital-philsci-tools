@@ -452,8 +452,8 @@ class MilvusSubcorpusBuilder:
             if filename is None or offset is None:
                 print(f" ✗ Missing filename or offset for corpus ID {corpus_id}")
                 return None
-            print(f"paper: {filename}")
-            print(f"offset: {offset}")
+            # print(f"paper: {filename}")
+            # print(f"offset: {offset}")
             paper = self.load_paper_from_gzip(filename, offset)
         
         if paper is None:
