@@ -27,7 +27,7 @@ config = ModelConfig(
 modeler = TopicModeler(config)
 model, topics, probs = modeler.fit(paragraphs)
 
-output_dir = Path(f"BERTopic_results_raw_{str(uuid.uuid4())[:3]}")
+output_dir = Path(f"BERTopic_results/raw/raw_{str(uuid.uuid4())[:3]}")
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # the most representative paragraph for each cluster
@@ -35,7 +35,7 @@ for topic_id in model.get_topics():
     center_paragraphs = model.get_representative_docs(topic_id)[:3]
 
     # save to file
-    with open("BERTopic_results_raw" / output_dir / f'center_{topic_id}.json', 'w', encoding='utf-8') as f:
+    with open(output_dir / f'center_{topic_id}.json', 'w', encoding='utf-8') as f:
 
         data = {"topic": topic_id,
                 "paragraphs": []}
