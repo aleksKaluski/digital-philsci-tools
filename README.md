@@ -286,6 +286,9 @@ python retrieve_query_texts.py \
 ```
 
 ### Step 6
+It visualizes only chosen subset of papers, meaning it does not work for the subcorpus you builded from 
+paragraphs but on the whole papers that you chosen.
+
 ```pycon
 python visualize_subcorpus.py \
     --subcorpus files/data/dp_mock_20260507_210223.pkl \
