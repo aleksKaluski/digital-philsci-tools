@@ -1,3 +1,8 @@
+"""
+This scripts runs BERTopic modelling on paragraphs or sentences, returing json files with the
+results - number of observations close to the centre of space.
+"""
+
 from topic_modeling_analysis import (DataLoader, TopicModeler, ModelConfig)
 import os
 from pathlib import Path
@@ -8,8 +13,8 @@ import uuid
 print(f"Current path {os.getcwd()}")
 
 # load paragraph results
-loader = DataLoader('files/operational_files/results_with_text.json',
-                    text_mode='result-with-context')
+loader = DataLoader('files/operational_files/results_with_text.json')
+                    # text_mode='result-with-context')
 
 
 paragraphs, metadata = loader.load()
@@ -33,6 +38,7 @@ output_dir.mkdir(parents=True, exist_ok=True)
 # the most representative paragraph for each cluster
 for topic_id in model.get_topics():
     center_paragraphs = model.get_representative_docs(topic_id)[:3]
+    print(center_paragraphs)
 
     # save to file
     with open(output_dir / f'center_{topic_id}.json', 'w', encoding='utf-8') as f:
