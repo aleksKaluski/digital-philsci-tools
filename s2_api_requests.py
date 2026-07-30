@@ -327,7 +327,9 @@ def fetch_paper_embeddings(rate_limit_delay=1):
     print(f"  {output_file}")
     print(f"{'='*60}")
 
-def fetch_papers_metadata(rate_limit_delay=1):
+def fetch_papers_metadata(rate_limit_delay=1,
+                          enrich_bertopic_results=False):
+
     """
     Fetch paper metadata for corpus IDs individually with automatic retry.
     Saves results as a JSON file with full paper metadata.
@@ -337,8 +339,9 @@ def fetch_papers_metadata(rate_limit_delay=1):
     """
     timestamp = get_timestamp()
     headers = load_headers()
+
     corpus_ids = load_corpus_ids(f'{DATA_PATH}/corpus_ids.txt')
-    
+
     if not corpus_ids:
         return
     
