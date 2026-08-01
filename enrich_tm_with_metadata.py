@@ -40,15 +40,6 @@ def build_text_hashmap(input_file: str | Path, field: str = "text") -> dict:
                 hashmap[text_hash].append(meta)
     return hashmap
 
-
-def enrich_metadata(corpus_id: int, rate_limit_delay: int=1):
-    """
-    The goal of this function is to enrich the current metadata by combining current results with
-    two files.
-    """
-
-    pass
-
 # compute hashmap for the source file with metadata
 input_file = Path(r'files/operational_files/results_with_text.json')
 results_hashmap = build_text_hashmap(input_file=input_file)
@@ -82,17 +73,16 @@ for file_path in folder_path.iterdir():
 
                 if matched_metadata:
                     # avoid doubling identical data
-                    for meta in matched_metadata:
-                        meta.pop("text", None)
-                        meta["rrf_rank"] = meta.pop("rank", None)
-
-
-
-                    paragraph["metadata"] = matched_metadata
+                    # Take the first metadata item and convert to dict
+                    meta = matched_metadata[0]  # assuming there's at least one item
+                    meta.pop("text", None)
+                    meta["rrf_rank"] = meta.pop("rank", None)
+                    paragraph["metadata"] = meta  # assign the dict directly
                 else:
-                    paragraph["metadata"] = []
+                    paragraph["metadata"] = {}  # empty dict instead of empty list
 
-        output_file_path = new_folder_path.joinpath(file_path.name.replace("_raw", "") + "_processed")
+
+        output_file_path = new_folder_path.joinpath(file_path.name.replace("_raw.json", "_processed.json"))
         with open(output_file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
 
