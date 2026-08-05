@@ -6,13 +6,12 @@ of enrich_tm_with_metadata.py
 import requests
 import time
 import json
-import os
-from datetime import datetime
 from dotenv import load_dotenv
-import pickle
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 import os
+import argparse
+
 
 # provide path to your folder  with seed papers
 
@@ -203,8 +202,12 @@ def save_failed_items(failed_items: List[Tuple[str, str]], prefix: str, timestam
     return failed_file
 
 
-def retry_failed_requests(failed_items: List[Tuple[str, str]], headers: Dict, fields: List[str],
-                          format_func, rate_limit_delay=1, max_retry_rounds=3):
+def retry_failed_requests(failed_items: List[Tuple[str, str]],
+                          headers: Dict,
+                          fields: List[str],
+                          format_func,
+                          rate_limit_delay=1,
+                          max_retry_rounds=3):
     """
     Retry failed requests with progressive backoff.
 
@@ -371,7 +374,22 @@ def main():
     print("=" * 60)
     print("\n" + "=" * 60)
 
-    folder_path = Path(r'BERTopic_results/processed/d7b_processed')
+
+    parser = argparse.ArgumentParser(description='Enrich BERTopic modeling results with metadata from SemSchol servers.')
+
+    parser.add_argument(
+        '-dir', '--input-folder',
+        type=str,
+        required=True,
+        help='Path to the folder with the results of enrich_tm_with_metadata.py'
+    )
+
+    args = parser.parse_args()
+
+    print(f"Current path: {os.getcwd()}")
+    print(f"Input folder: {args.input_folder}")
+
+    folder_path = Path(args.input_folder)
 
     new_folder_path = r"BERTopic_results/final/" + folder_path.name.split("_")[0] + "_final"
     new_folder_path = Path(new_folder_path)
@@ -380,8 +398,7 @@ def main():
     for file_path in folder_path.iterdir():
         fetch_papers_metadata(input_file_path=file_path,
                               output_folder_path=new_folder_path)
-
-
+    print(f"\nResults were saved to {new_folder_path}")
 
 
 if __name__ == "__main__":
@@ -391,3 +408,13 @@ if __name__ == "__main__":
     print(f"\n{'=' * 60}")
     print(f"Script finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'=' * 60}")
+
+
+
+"""
+Use-case:
+
+python eretrive_metadata_from_so2rc.py \
+    -dir BERTopic_results/processed/407_processed
+
+"""
