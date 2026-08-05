@@ -296,6 +296,43 @@ python visualize_subcorpus.py \
     --output-dir visualizations/
 ```
 
+You can also run BERTopic clustering on your RRF results. Thus, you can query the corpus for a set of paragraphs or
+sentences and then cluster them with BERT. 
+
+Assuming that you already query the corpus:
+
+### Step 7.1 
+Run topic modelling on RRF results.
+
+```pycon
+python run_topic_modelling.py\
+    -i files/operational_files/results_with_text.json\
+    --min-cluster-size 20\
+    --umap-components 8\
+    --docs 3\
+    --use-gpu
+```
+
+### Step 7.2 
+Enrich with the retrived results with corpus ID (then with Semantic Scholar metadata).
+
+```pycon
+python enrich_tm_with_metadata.py \
+    -file files/operational_files/results_with_text.json\
+    -dir BERTopic_results/raw/407_raw\
+    -field text
+
+```
+
+### Step 7.3
+Query the Semantic Scholar database to retrived additional details.
+
+```pycon
+python retrive_metadata_from_so2rc.py \
+    -dir BERTopic_results/processed/407_processed
+```
+
+
 
 **Output format** (JSON):
 ```json

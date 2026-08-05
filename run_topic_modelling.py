@@ -53,7 +53,7 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Current path: {os.getcwd()}")
+    print(f"\nCurrent path: {os.getcwd()}")
     print(f"Input file: {args.input_file}")
     print(f"Min cluster size: {args.min_cluster_size}")
     print(f"UMAP components: {args.umap_components}")
@@ -103,7 +103,7 @@ def main():
         output_file = output_dir / f'center_{topic_id}_processed.json'
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-            print(f"Results saved to {output_file}")
+    print(f"Results saved to {output_dir}")
 
 if __name__ == "__main__":
     main()

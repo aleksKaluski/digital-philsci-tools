@@ -386,8 +386,8 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Current path: {os.getcwd()}")
-    print(f"Input folder: {args.input_folder}")
+    print(f"\nCurrent path: {os.getcwd()}")
+    print(f"Input folder: {args.input_folder}\n")
 
     folder_path = Path(args.input_folder)
 
@@ -414,7 +414,7 @@ if __name__ == "__main__":
 """
 Use-case:
 
-python eretrive_metadata_from_so2rc.py \
+python retrive_metadata_from_so2rc.py \
     -dir BERTopic_results/processed/407_processed
 
 """

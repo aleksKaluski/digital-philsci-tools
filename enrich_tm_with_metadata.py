@@ -34,10 +34,10 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Current path: {os.getcwd()}")
+    print(f"\nCurrent path: {os.getcwd()}")
     print(f"Input file: {args.input_file}")
     print(f"Input folder: {args.input_folder}")
-    print(f"Text field: {args.text_field}")
+    print(f"Text field: {args.text_field}\n")
 
 
     def compute_hash(text: str) -> str:
@@ -88,7 +88,7 @@ def main():
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-                for paragraph in data.get("paragraphs", []):
+                for i, paragraph in enumerate(data.get("paragraphs", [])):
                     para_text = paragraph[str(args.text_field)]
 
                     # compute hashmap representation
@@ -106,6 +106,7 @@ def main():
                         paragraph["metadata"] = meta  # assign the dict directly
                     else:
                         paragraph["metadata"] = {}  # empty dict instead of empty list
+                        print(f"[!] No metadata for {file_path.name} (paragraph {i})")
 
 
             output_file_path = new_folder_path.joinpath(file_path.name.replace("_raw.json", "_processed.json"))
