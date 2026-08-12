@@ -13,14 +13,14 @@ from typing import List, Dict, Optional, Tuple
 # DATA_PATH = '/mnt/c/Python_files/digital-philsci-tools/files/operational_files'
 
 # on Linux
-DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/files/operational_files'
+DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/files/final_dp'
 
 
 # ============================================================================
 # CORE INDIVIDUAL QUERY FUNCTION
 # ============================================================================
 
-def get_paper(paper_id: str, headers: Dict, fields: List[str], sleep_time=1, max_retries=3):
+def get_paper(paper_id: str, headers: Dict, fields: List[str], sleep_time=1, max_retries=2):
     """
     Generic function to fetch a single paper with retry logic.
     
@@ -207,7 +207,7 @@ def retry_failed_requests(failed_items: List[Tuple[str, str]], headers: Dict, fi
         
         round_failed = []
         wait_time = rate_limit_delay * (2 ** (round_num - 1))  # Exponential backoff between rounds
-        
+
         for identifier, error_code in still_failed:
             paper_id = format_func(identifier)
             paper, new_error = get_paper(paper_id, headers, fields, sleep_time=wait_time)
@@ -217,9 +217,9 @@ def retry_failed_requests(failed_items: List[Tuple[str, str]], headers: Dict, fi
                 print(f"  ✓ Retry successful: {identifier}")
             else:
                 round_failed.append((identifier, new_error))
-            
+
             time.sleep(wait_time)
-        
+
         print(f"\nRound {round_num} results: {len(successful)} recovered, {len(round_failed)} still failed")
         still_failed = round_failed
     
@@ -283,7 +283,7 @@ def fetch_paper_embeddings(rate_limit_delay=1):
             # Retriable error
             failed_items.append((corpus_id, error_code))
             print(f"  [{i}/{len(corpus_ids)}] ⚠ Failed (will retry): {corpus_id} [Error: {error_code}]")
-        
+
         time.sleep(rate_limit_delay)
     
     # Retry failed requests
@@ -300,8 +300,8 @@ def fetch_paper_embeddings(rate_limit_delay=1):
         for corpus_id, paper in successful_retries:
             corpus_id_str = str(paper.get('corpusId'))
             embedding_data = paper.get('embedding')
-            if embedding_data and 'specter_v2' in embedding_data:
-                embeddings[corpus_id_str] = embedding_data['specter_v2']
+            if embedding_data and embedding_data.get('model') == 'specter_v2':
+                embeddings[corpus_id_str] = embedding_data['vector']
             else:
                 no_embedding_count += 1
         
@@ -372,7 +372,7 @@ def fetch_papers_metadata(rate_limit_delay=1,
         else:
             failed_items.append((corpus_id, error_code))
             print(f"  [{i}/{len(corpus_ids)}] ⚠ Failed (will retry): {corpus_id}")
-        
+
         time.sleep(rate_limit_delay)
     
     # Retry failed requests
@@ -447,7 +447,7 @@ def fetch_corpus_ids_from_dois(rate_limit_delay=1):
         else:
             failed_items.append((doi, error_code))
             print(f"  [{i}/{len(dois)}] ⚠ Failed (will retry): {doi[:50]}...")
-        
+
         time.sleep(rate_limit_delay)
     
     # Retry failed requests
@@ -497,7 +497,7 @@ def fetch_corpus_ids_from_dois(rate_limit_delay=1):
     print(f"  {txt_file}")
     print(f"{'='*60}")
 
-def fetch_embeddings_and_metadata(rate_limit_delay=1):
+def fetch_embeddings_and_metadata(rate_limit_delay=3):
     """
     Fetch both embeddings and metadata for corpus IDs individually with automatic retry.
     Saves embeddings as pickle and metadata as JSON.
@@ -526,26 +526,26 @@ def fetch_embeddings_and_metadata(rate_limit_delay=1):
     # First pass
     for i, corpus_id in enumerate(corpus_ids, 1):
         paper_id = format_corpus_id(corpus_id)
-        paper, error_code = get_paper(paper_id, headers, fields)
-        
+        paper, error_code = get_paper(paper_id, headers, fields, 1, 4)
+
         if paper:
             corpus_id_str = str(paper.get('corpusId'))
-            
+
             # Extract embedding
             embedding_data = paper.get('embedding')
-            if embedding_data and 'specter_v2' in embedding_data:
-                embeddings[corpus_id_str] = embedding_data['specter_v2']
-            
+            if embedding_data and embedding_data.get('model') == 'specter_v2':
+                embeddings[corpus_id_str] = embedding_data['vector']
+
             # Store metadata
             metadata = {k: v for k, v in paper.items() if k != 'embedding'}
             metadata['has_embedding'] = corpus_id_str in embeddings
             paper_metadata.append(metadata)
-            
+
             if i % 100 == 0:
                 print(f"  [{i}/{len(corpus_ids)}] Processed")
         elif error_code != 404:
             failed_items.append((corpus_id, error_code))
-        
+
         time.sleep(rate_limit_delay)
     
     # Retry failed requests
@@ -558,9 +558,10 @@ def fetch_embeddings_and_metadata(rate_limit_delay=1):
             corpus_id_str = str(paper.get('corpusId'))
             
             embedding_data = paper.get('embedding')
-            if embedding_data and 'specter_v2' in embedding_data:
-                embeddings[corpus_id_str] = embedding_data['specter_v2']
-            
+            if embedding_data and embedding_data.get('model') == 'specter_v2':
+                embeddings[corpus_id_str] = embedding_data['vector']
+
+
             metadata = {k: v for k, v in paper.items() if k != 'embedding'}
             metadata['has_embedding'] = corpus_id_str in embeddings
             paper_metadata.append(metadata)

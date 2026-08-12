@@ -44,10 +44,27 @@ def main():
     )
 
     parser.add_argument(
+        '--model',
+        type=str,
+        default='sentence-transformers/all-mpnet-base-v2',
+        help='Embedding model name (default: sentence-transformers/all-mpnet-base-v2, '
+             'to match build_subcorpus_milvus.py / query_subcorpus.py). '
+             'ModelConfig otherwise silently falls back to all-MiniLM-L6-v2 (384-dim).'
+    )
+
+    parser.add_argument(
         '--use-gpu',
+        dest='use_gpu',
         action='store_true',
         default=True,
         help='Use GPU for computation (default: True)'
+    )
+
+    parser.add_argument(
+        '--no-gpu',
+        dest='use_gpu',
+        action='store_false',
+        help='Disable GPU for computation'
     )
 
 
@@ -57,6 +74,7 @@ def main():
     print(f"Input file: {args.input_file}")
     print(f"Min cluster size: {args.min_cluster_size}")
     print(f"UMAP components: {args.umap_components}")
+    print(f"Embedding model: {args.model}")
     print(f"Use GPU: {args.use_gpu}\n")
 
     # load paragraph results
@@ -73,6 +91,7 @@ def main():
 
     # configure for paragraph-level clustering
     config = ModelConfig(
+        embedding_model_name=args.model,
         query_level='paragraph',
         text_mode='result',
         hdbscan_min_cluster_size=args.min_cluster_size,
@@ -86,6 +105,10 @@ def main():
 
     output_dir = Path(f"BERTopic_results/raw/{str(uuid.uuid4())[:3]}_raw")
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # save topic sizes + keywords for downstream validation
+    topic_info = model.get_topic_info()
+    topic_info.to_csv(output_dir / "topic_info.csv", index=False)
 
     # the most representative paragraph for each cluster
     for topic_id in model.get_topics():
@@ -118,12 +141,3 @@ python run_topic_modelling.py\
     --use-gpu
 
 """
-
-
-
-
-
-
-
-
-

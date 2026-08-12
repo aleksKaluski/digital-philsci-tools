@@ -110,7 +110,9 @@ MONGO_PORT = 27017
 
 # Default embedding model
 DEFAULT_MODEL = "multi-qa-MiniLM-L6-cos-v1"
-EMBEDDING_DIMENSION = 384  # for multi-qa-MiniLM-L6-cos-v1
+# EMBEDDING_DIMENSION = 384  # for multi-qa-MiniLM-L6-cos-v1
+EMBEDDING_DIMENSION = 768 # for all-mpnet-base-v2
+
 
 # Paragraph settings
 DEFAULT_PARAGRAPH_SIZE = 10  # sentences per paragraph if no annotation
