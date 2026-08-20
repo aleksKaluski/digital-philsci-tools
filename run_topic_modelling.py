@@ -10,6 +10,7 @@ import json
 import uuid
 import argparse
 import sys
+import pandas as pd
 
 
 def main():
@@ -110,9 +111,28 @@ def main():
     topic_info = model.get_topic_info()
     topic_info.to_csv(output_dir / "topic_info.csv", index=False)
 
-    # the most representative paragraph for each cluster
+    # Reuse BERTopic's own representative-doc machinery - the same c-TF-IDF
+    # cosine-similarity ranking that feeds get_representative_docs() and the
+    # built-in LLM labeling prompts - but with nr_repr_docs=args.docs instead
+    # of BERTopic's hardcoded 3. This needs the same "Document"/"Topic"/"ID"/
+    # "Image" DataFrame shape BERTopic builds internally in fit_transform().
+    documents_df = pd.DataFrame({
+        "Document": paragraphs,
+        "Topic": topics,
+        "ID": range(len(paragraphs)),
+        "Image": [None] * len(paragraphs),
+    })
+    repr_docs_mappings, _, _, _ = model._extract_representative_docs(
+        model.c_tf_idf_,
+        documents_df,
+        model.get_topics(),
+        500,        # nr_samples: candidate pool per topic before ranking
+        args.docs,  # nr_repr_docs: how many to keep after ranking
+    )
+
+    # the most representative paragraphs for each cluster
     for topic_id in model.get_topics():
-        center_paragraphs = model.get_representative_docs(topic_id)[:args.docs]
+        center_paragraphs = repr_docs_mappings[topic_id][:args.docs]
 
         # create the data structure
         data = {
@@ -133,11 +153,11 @@ if __name__ == "__main__":
 
 """
 Sample run:
-python run_topic_modelling.py\
-    -i files/operational_files/results_with_text.json\
-    --min-cluster-size 20\
-    --umap-components 8\
-    --docs 3\
+python run_topic_modelling.py \
+    -i files/operational_files/results_with_text.json \
+    --min-cluster-size 20 \
+    --umap-components 8 \
+    --docs 10 \
     --use-gpu
 
 """

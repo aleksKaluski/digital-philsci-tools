@@ -116,18 +116,14 @@ def find_cross_topic_duplicates(
 
 
 DEFAULT_HIGHLIGHT_TERMS = [
-    "direct", "indirect", "perception", "perceptual", "perceive",
-    "vision", "visual", "unmediated", "mediated",
-    "representation", "representationalism", "representationalist",
-    "naive realism", "direct realism", "indirect realism",
-    "sense-data", "sense data", "affordance", "ecological",
+    "direct", "indirect", "direct perception", "direct realism", "directly", "indirectly"
 ]
 
 
 def bold_terms(text: str, terms: List[str]) -> str:
     """
     Wrap whole-word (case-insensitive) matches of the given terms in **bold**,
-    preserving the original casing of the matched text.
+    convert them to CAPITALS, and color them red.
 
     Longer terms are matched first so multi-word phrases (e.g. "naive realism")
     take priority over any single-word overlap, and \\b boundaries ensure
@@ -142,7 +138,9 @@ def bold_terms(text: str, terms: List[str]) -> str:
         r"\b(" + "|".join(re.escape(t) for t in sorted_terms) + r")\b",
         re.IGNORECASE,
     )
-    return pattern.sub(lambda m: f"**{m.group(0)}**", text)
+    return pattern.sub(
+        lambda m: f'<span style="color:red">**{m.group(0).upper()}**</span>', text
+    )
 
 
 def markdown_table(
