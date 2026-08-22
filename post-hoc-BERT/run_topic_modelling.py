@@ -3,13 +3,37 @@ This scripts runs BERTopic modeling on paragraph, returning JSON files with the
 results - number of observations close to the center of space.
 """
 
-from topic_modeling_analysis import (DataLoader, TopicModeler, ModelConfig)
-import os
 from pathlib import Path
+import sys
+import os
+
+def find_repo_root(start_path=None):
+    """
+    Traverse up from the script's location until we find the .git directory
+    (which marks the repository root). Works on any OS and any machine.
+    """
+    if start_path is None:
+        start_path = Path(__file__).resolve().parent
+    else:
+        start_path = Path(start_path).resolve()
+
+    for parent in [start_path] + list(start_path.parents):
+        if (parent / '.git').exists() or (parent / '.git').is_dir():
+            return parent
+    return start_path
+
+# get repo root and change to it
+repo_root = find_repo_root()
+os.chdir(repo_root)
+
+# add repo root to Python path so imports work from any subfolder
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from topic_modeling_analysis import (DataLoader, TopicModeler, ModelConfig)
 import json
 import uuid
 import argparse
-import sys
 import pandas as pd
 
 
@@ -159,5 +183,7 @@ python run_topic_modelling.py \
     --umap-components 8 \
     --docs 10 \
     --use-gpu
+    
+python run_topic_modelling.py -i files/operational_files/results_with_text.json --min-cluster-size 20 --umap-components 8 --docs 10 --use-gpu
 
 """

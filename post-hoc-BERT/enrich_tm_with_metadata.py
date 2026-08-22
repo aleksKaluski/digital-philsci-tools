@@ -3,7 +3,29 @@ This script connects the text results retrived by BERTopic with the metadata con
 """
 
 import os
+import sys
 from pathlib import Path
+
+def find_repo_root(start_path=None):
+    if start_path is None:
+        start_path = Path(__file__).resolve().parent
+    else:
+        start_path = Path(start_path).resolve()
+
+    for parent in [start_path] + list(start_path.parents):
+        if (parent / '.git').exists() or (parent / '.git').is_dir():
+            return parent
+    return start_path
+
+# get repo root and change to it
+repo_root = find_repo_root()
+os.chdir(repo_root)
+
+# add repo root to Python path so imports work from any subfolder
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+
 import hashlib
 import json
 import argparse
@@ -121,10 +143,13 @@ if __name__ == "__main__":
 """
 Use-case:
 
+multi-line:
 python enrich_tm_with_metadata.py \
     -file files/operational_files/results_with_text.json\
     -dir BERTopic_results/raw/e80_raw\
     -field text
 
+one-liner:    
+python enrich_tm_with_metadata.py -file files/operational_files/results_with_text.json -dir BERTopic_results/raw/e80_raw -field text
 """
 

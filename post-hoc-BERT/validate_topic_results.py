@@ -4,38 +4,13 @@ validate_topic_results.py
 Quick-read validation report generator for run_topic_modelling.py output.
 
 Reads the per-run output folder produced by run_topic_modelling.py
-(e.g. BERTopic_results/raw/137_raw/) and turns it into ONE Markdown file
-you can scroll through quickly, instead of opening N separate
-center_<topic_id>_processed.json files by hand.
+(e.g. BERTopic_results/raw/137_raw/) and turns it into ONE Markdown file.
 
 Expects, in --results-dir:
     - topic_info.csv                     topic sizes + keywords (added by the
                                           patched run_topic_modelling.py)
     - center_<topic_id>_processed.json   representative paragraphs per topic
                                           (already produced by the original script)
-
-If topic_info.csv is missing (i.e. you're validating an older run), the
-script still works, just without size/keyword columns.
-
-WHAT THIS SCRIPT DOES vs. DOES NOT DO
---------------------------------------
-It does NOT decide whether your topics are "philosophically coherent" --
-that judgment call is yours, the same way your README treats "do retrieved
-passages read as on-topic?" as a human checkpoint, not something a script
-certifies. What it DOES do is surface the evidence you need to make that
-call quickly and consistently across runs:
-
-    1. Topic sizes + keywords, sorted largest-first
-    2. Outlier ("-1") share -- a high value usually means HDBSCAN/UMAP
-       parameters need retuning, not that your topic is real but small
-    3. The saved representative paragraphs for every topic, in one place
-    4. Cross-topic near-duplicate representative paragraphs -- a same/near-
-       identical passage assigned to two DIFFERENT topics usually signals
-       over-fragmentation (two topics that should really be one), or a
-       boilerplate phrase (e.g. citation format) dominating the embedding
-    5. Key domain terms (direct, indirect, perception, vision, ...) bolded
-       throughout, so the words that matter for eyeballing "is this really
-       about direct perception?" jump out while scrolling
 
 Usage:
     python validate_topic_results.py --results-dir BERTopic_results/raw/137_raw
@@ -48,16 +23,35 @@ Usage:
 Comparing multiple runs (e.g. different --min-cluster-size settings):
     python validate_topic_results.py --results-dir BERTopic_results/raw/137_raw
     python validate_topic_results.py --results-dir BERTopic_results/raw/afb_raw
-    # then diff the two VALIDATION_REPORT.md "Summary" sections
 """
+import os
+import sys
+from pathlib import Path
+
+def find_repo_root(start_path=None):
+    if start_path is None:
+        start_path = Path(__file__).resolve().parent
+    else:
+        start_path = Path(start_path).resolve()
+
+    for parent in [start_path] + list(start_path.parents):
+        if (parent / '.git').exists() or (parent / '.git').is_dir():
+            return parent
+    return start_path
+
+# get repo root and change to it
+repo_root = find_repo_root()
+os.chdir(repo_root)
+
+# add repo root to Python path so imports work from any subfolder
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
 import argparse
 import json
 import re
 from difflib import SequenceMatcher
-from pathlib import Path
 from typing import Dict, List, Optional
-
 import pandas as pd
 
 

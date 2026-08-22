@@ -3,13 +3,34 @@ Modified s2_api_requests.py created in order to fetch the additional metadata fr
 of enrich_tm_with_metadata.py
 """
 
+import os
+import sys
+from pathlib import Path
+
+def find_repo_root(start_path=None):
+    if start_path is None:
+        start_path = Path(__file__).resolve().parent
+    else:
+        start_path = Path(start_path).resolve()
+
+    for parent in [start_path] + list(start_path.parents):
+        if (parent / '.git').exists() or (parent / '.git').is_dir():
+            return parent
+    return start_path
+
+# get repo root and change to it
+repo_root = find_repo_root()
+os.chdir(repo_root)
+
+# add repo root to Python path so imports work from any subfolder
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
 import requests
 import time
 import json
 from dotenv import load_dotenv
 from typing import List, Dict, Optional, Tuple
-from pathlib import Path
-import os
 import argparse
 
 
@@ -414,7 +435,6 @@ if __name__ == "__main__":
 """
 Use-case:
 
-python retrive_metadata_from_so2rc.py \
-    -dir BERTopic_results/processed/407_processed
+python retrive_metadata_from_so2rc.py -dir BERTopic_results/processed/e80_processed
 
 """
