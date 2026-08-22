@@ -3,13 +3,13 @@ Validate corpus IDs by fetching titles from Semantic Scholar API.
 Samples based on RRF score distribution (high, medium, low tertiles).
 
 This script:
-1. Loads corpus IDs and RRF scores from a JSON file
+1. Loads corpus IDs and RRF scores from a JSON file (new structure: corpusid, rank, paragraph_number, etc.)
 2. Sorts papers by RRF score (descending - highest first)
 3. Divides into three tertiles (high, medium, low RRF scores)
 4. Samples equally from each tertile
 5. Fetches titles, authors, venue, year from Semantic Scholar API for the sampled IDs
 6. Includes RRF score and percentile information in results
-7. Saves validation results as JSON
+7. Saves validation results as JSON in the same folder as input with "_sample" suffix
 """
 
 import os
@@ -56,7 +56,6 @@ def load_headers() -> Dict:
 
     try:
         headers = json.loads(headers_str) if headers_str else {}
-        print(headers)
     except json.JSONDecodeError:
         print("Error: HEADERS in .env file is not valid JSON")
         headers = {}
@@ -67,16 +66,20 @@ def load_headers() -> Dict:
 
     return headers
 
+def generate_output_path(input_path: str) -> str:
+    """Generate output path in same directory as input with '_sample' suffix before extension."""
+    path = Path(input_path)
+    stem = path.stem
+    suffix = path.suffix
+    new_stem = f"{stem}_sample"
+    return str(path.parent / f"{new_stem}{suffix}")
+
 def load_rrf_data(filepath: str) -> List[Dict]:
     """
     Load corpus IDs with RRF scores from a JSON file.
 
-    Expected format:
-    [
-      {"corpus_id": 255971812, "rrf_score": 0.18798602052282487},
-      {"corpus_id": 9261973, "rrf_score": 0.18598112248215903},
-      ...
-    ]
+    Supports both old format: [{"corpus_id": ..., "rrf_score": ...}, ...]
+    and new format: [{"rank": ..., "rrf_score": ..., "corpusid": ..., ...}, ...]
     """
     if not os.path.exists(filepath):
         print(f"Error: File not found: {filepath}")
@@ -94,13 +97,24 @@ def load_rrf_data(filepath: str) -> List[Dict]:
         if not isinstance(item, dict):
             print(f"Warning: Item {i} is not a dict, skipping")
             continue
-        if 'corpus_id' not in item:
-            print(f"Warning: Item {i} missing 'corpus_id', skipping")
+
+        # Normalize field names: handle both corpus_id and corpusid
+        normalized = {}
+        if 'corpus_id' in item:
+            normalized['corpus_id'] = item['corpus_id']
+        elif 'corpusid' in item:
+            normalized['corpus_id'] = item['corpusid']
+        else:
+            print(f"Warning: Item {i} missing both 'corpus_id' and 'corpusid', skipping")
             continue
-        if 'rrf_score' not in item:
+
+        if 'rrf_score' in item:
+            normalized['rrf_score'] = item['rrf_score']
+        else:
             print(f"Warning: Item {i} missing 'rrf_score', using 0.0")
-            item['rrf_score'] = 0.0
-        valid_items.append(item)
+            normalized['rrf_score'] = 0.0
+
+        valid_items.append(normalized)
 
     print(f"Loaded {len(valid_items)} papers with RRF scores from {filepath}")
     return valid_items
@@ -316,11 +330,6 @@ def main():
                         required=True,
                         help='Path to JSON file containing corpus IDs with RRF scores')
 
-    parser.add_argument('--output',
-                        type=str,
-                        required=True,
-                        help='Path to save validation results as JSON')
-
     parser.add_argument('--sample-percent',
                         type=float,
                         default=5.0,
@@ -349,11 +358,14 @@ def main():
     args = parser.parse_args()
     random.seed(args.seed)
 
+    # Generate output path automatically from input path
+    output_path = generate_output_path(args.input)
+
     print("=" * 70)
     print("CORPUS ID VALIDATION (RRF-BASED SAMPLING)")
     print("=" * 70)
     print(f"Input file: {args.input}")
-    print(f"Output file: {args.output}")
+    print(f"Output file: {output_path}")
     print(f"Sample: {args.sample_count or f'{args.sample_percent}%'} of corpus IDs")
     print(f"Rate limit delay: {args.rate_limit_delay}s")
     print(f"Random seed: {args.seed}")
@@ -408,8 +420,8 @@ def main():
         'results': results
     }
 
-    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-    with open(args.output, 'w', encoding='utf-8') as f:
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(output_data, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 70)
@@ -423,13 +435,8 @@ def main():
     print(f"\nRRF Statistics for sample:")
     for key, value in rrf_stats.items():
         print(f"  {key}: {value}")
-    print(f"\nResults saved to: {args.output}")
+    print(f"\nResults saved to: {output_path}")
     print("=" * 70)
 
 if __name__ == "__main__":
     main()
-
-"""
-Use-case:
-python validate_corpus_rrf.py --input files/final_dp/0808_20260810_195654.json --output files/operatonal_files/final_dp/query_results_1108_500_validated.json --sample-percent 1
-"""
