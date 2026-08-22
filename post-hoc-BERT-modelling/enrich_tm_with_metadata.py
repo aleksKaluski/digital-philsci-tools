@@ -150,6 +150,6 @@ python enrich_tm_with_metadata.py \
     -field text
 
 one-liner:    
-python enrich_tm_with_metadata.py -file files/operational_files/results_with_text.json -dir BERTopic_results/raw/e80_raw -field text
+python enrich_tm_with_metadata.py -file files/operational_files/results_with_text.json -dir BERTopic_results/raw/1f9_raw -field text
 """
 

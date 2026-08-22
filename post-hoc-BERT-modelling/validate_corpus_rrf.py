@@ -431,5 +431,5 @@ if __name__ == "__main__":
 
 """
 Use-case:
-python validate_corpus_rrf.py --input files/operatonal_files/final_dp/0808_20260810_195654.json --output files/operatonal_files/final_dp/query_results_1108_500_validated.json --sample-percent 1
+python validate_corpus_rrf.py --input files/final_dp/0808_20260810_195654.json --output files/operatonal_files/final_dp/query_results_1108_500_validated.json --sample-percent 1
 """
