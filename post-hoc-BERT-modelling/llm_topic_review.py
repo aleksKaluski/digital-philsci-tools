@@ -19,7 +19,6 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-
 import requests
 
 DEFAULT_BASE_URL = "http://localhost:1234/v1"
