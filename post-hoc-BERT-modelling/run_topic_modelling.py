@@ -135,11 +135,11 @@ def main():
     topic_info = model.get_topic_info()
     topic_info.to_csv(output_dir / "topic_info.csv", index=False)
 
+    # Claude's fix on hardcoded BERTopic engine
     # Reuse BERTopic's own representative-doc machinery - the same c-TF-IDF
     # cosine-similarity ranking that feeds get_representative_docs() and the
     # built-in LLM labeling prompts - but with nr_repr_docs=args.docs instead
-    # of BERTopic's hardcoded 3. This needs the same "Document"/"Topic"/"ID"/
-    # "Image" DataFrame shape BERTopic builds internally in fit_transform().
+    # of BERTopic's hardcoded 3.
     documents_df = pd.DataFrame({
         "Document": paragraphs,
         "Topic": topics,
@@ -150,7 +150,7 @@ def main():
         model.c_tf_idf_,
         documents_df,
         model.get_topics(),
-        500,        # nr_samples: candidate pool per topic before ranking
+        500, # nr_samples: candidate pool per topic before ranking
         args.docs,  # nr_repr_docs: how many to keep after ranking
     )
 
