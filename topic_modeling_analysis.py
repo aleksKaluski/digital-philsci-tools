@@ -166,6 +166,7 @@ class ModelConfig:
     
     # HDBSCAN parameters
     hdbscan_min_cluster_size: int = 50
+    hdbscan_min_samples: Optional[int] = None
     hdbscan_metric: str = 'euclidean'
     hdbscan_cluster_selection_method: str = 'eom'
     
@@ -178,6 +179,7 @@ class ModelConfig:
     # Outlier reduction
     outlier_strategy: str = "distributions"
     outlier_threshold: float = 0.1
+    reduce_outliers: bool = True
     
     # GPU settings
     use_gpu: bool = True
@@ -969,6 +971,7 @@ class TopicModeler:
                     n_neighbors=self.config.umap_n_neighbors,
                     n_components=self.config.umap_n_components,
                     min_dist=self.config.umap_min_dist,
+                    metric=self.config.umap_metric,
                     random_state=self.config.umap_random_state
                 )
             except ImportError:
@@ -991,13 +994,16 @@ class TopicModeler:
                 print("Using GPU-accelerated HDBSCAN")
                 return cuHDBSCAN(
                     min_cluster_size=self.config.hdbscan_min_cluster_size,
-                    cluster_selection_method=self.config.hdbscan_cluster_selection_method
+                    min_samples=self.config.hdbscan_min_samples,
+                    cluster_selection_method=self.config.hdbscan_cluster_selection_method,
+                    prediction_data=True
                 )
             except ImportError:
                 print("cuML not available, using CPU HDBSCAN")
         
         return HDBSCAN(
             min_cluster_size=self.config.hdbscan_min_cluster_size,
+            min_samples=self.config.hdbscan_min_samples,
             metric=self.config.hdbscan_metric,
             cluster_selection_method=self.config.hdbscan_cluster_selection_method,
             prediction_data=True
@@ -1121,18 +1127,32 @@ class TopicModeler:
         # Transform to get topics and probabilities
         topics, probs = self.model.transform(documents=docs, embeddings=embeddings)
         
-        print("Reducing outliers...")
-        # Outlier reduction
-        new_topics = self.model.reduce_outliers(
-            docs, 
-            topics, 
-            strategy=self.config.outlier_strategy,
-            threshold=self.config.outlier_threshold
-        )
-        
-        # Update topics
-        self.model.update_topics(docs, topics=new_topics, vectorizer_model=vectorizer_model)
-        
+        n_outliers = sum(1 for t in topics if t == -1)
+        n_clusters = len({t for t in topics if t != -1})
+
+        print(f"Clustering: {n_clusters} topics, {n_outliers}/{len(topics)} outliers")
+
+        # if outlier reduction disabled
+        if not self.config.reduce_outliers:
+            print("Outlier reduction disabled by config; skipping.")
+
+        # prevent the crash when no outliers are set
+        elif n_outliers == 0:
+            print("No outliers found; skipping outlier reduction.")
+
+        # standard procedure
+        else:
+            print(f"Reducing outliers ({n_outliers} documents)...")
+            new_topics = self.model.reduce_outliers(
+                docs,
+                topics,
+                strategy=self.config.outlier_strategy,
+                threshold=self.config.outlier_threshold
+            )
+            self.model.update_topics(docs, topics=new_topics, vectorizer_model=vectorizer_model)
+            # keep the returned labels in sync with the model's rebuilt state
+            topics = new_topics
+
         print(f"Model fitted with {len(self.model.get_topic_info())} topics")
         
         # Clean up embeddings from model
@@ -1140,7 +1160,8 @@ class TopicModeler:
             self.model._embeddings = None
         
         gc.collect()
-        
+
+        assert list(topics) == list(self.model.topics_), "returned topics diverge from model.topics_"
         return self.model, topics, probs
     
     @staticmethod
