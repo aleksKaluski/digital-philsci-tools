@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Tuple
 # DATA_PATH = '/mnt/c/Python_files/digital-philsci-tools/files/operational_files'
 
 # on Linux
-DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/files/final_dp'
+DATA_PATH = '/home/akaluski/PycharmProjects/digital-philsci-tools/files/a24_analysis/a24_seed'
 
 
 # ============================================================================

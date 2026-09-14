@@ -375,7 +375,7 @@ pyrightconfig.json
 .ionide
 
 # ignore data
-mock_testing/data
+tests/data
 files
 logs
 visualizations

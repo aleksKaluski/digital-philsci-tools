@@ -178,7 +178,10 @@ class ModelConfig:
     # Outlier reduction
     outlier_strategy: str = "distributions"
     outlier_threshold: float = 0.1
-    
+
+    # in case that we don't have outliers
+    reduce_outliers: bool = True
+
     # GPU settings
     use_gpu: bool = True
     
@@ -1132,6 +1135,9 @@ class TopicModeler:
         
         # Update topics
         self.model.update_topics(docs, topics=new_topics, vectorizer_model=vectorizer_model)
+
+        # return reduced topics
+        topics = new_topics
         
         print(f"Model fitted with {len(self.model.get_topic_info())} topics")
         
@@ -1140,7 +1146,6 @@ class TopicModeler:
             self.model._embeddings = None
         
         gc.collect()
-        
         return self.model, topics, probs
     
     @staticmethod
