@@ -85,14 +85,30 @@ S2_FIELDS = [
 # ============================================================================
 
 def load_api_key() -> Optional[str]:
-    """Load Semantic Scholar API key from environment."""
+    """Load Semantic Scholar API key from environment.
+
+    Accepts either SEMANTIC_SCHOLAR_API_KEY=<key> or the repo's
+    HEADERS={"x-api-key": "<key>"} convention.
+    """
     load_dotenv()
+
     api_key = os.getenv('SEMANTIC_SCHOLAR_API_KEY')
-    if not api_key:
-        print("Warning: SEMANTIC_SCHOLAR_API_KEY not found in .env file")
-        print("The script will use the public API with rate limits")
-        return None
-    return api_key
+    if api_key:
+        return api_key.strip()
+
+    raw = os.getenv('HEADERS')
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            api_key = parsed.get('x-api-key')
+            if api_key:
+                return api_key.strip()
+        except json.JSONDecodeError:
+            print("Warning: HEADERS in .env is not valid JSON")
+
+    print("Warning: no Semantic Scholar API key found in .env")
+    print("Falling back to the public API (heavily rate limited)")
+    return None
 
 
 def get_headers() -> Dict[str, str]:
