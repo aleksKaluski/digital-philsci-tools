@@ -102,6 +102,7 @@ def main():
     print(f"Embedding model: {args.model}")
     print(f"Use GPU: {args.use_gpu}\n")
 
+
     # load paragraph results
     try:
         loader = DataLoader(args.input_file)
@@ -126,14 +127,23 @@ def main():
 
     # run BERTopic and retrieve raw results
     modeler = TopicModeler(config)
-    model, topics, probs = modeler.fit(paragraphs)
+    model, topics, _ = modeler.fit(paragraphs)
 
-    output_dir = Path(f"BERTopic_results/raw/{str(uuid.uuid4())[:3]}_raw")
+    output_id = str(uuid.uuid4())[:3]
+    output_dir = Path(f"BERTopic_results/raw/{output_id}_raw")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # save topic sizes + keywords for downstream validation
     topic_info = model.get_topic_info()
     topic_info.to_csv(output_dir / "topic_info.csv", index=False)
+
+
+    with open(output_dir / f"{output_id}_params.txt", "w", encoding="utf-8") as f:
+        f.write(f"Input file: {args.input_file}\n")
+        f.write(f"Min cluster size: {args.min_cluster_size}\n")
+        f.write(f"UMAP components: {args.umap_components}\n")
+        f.write(f"Embedding model: {args.model}\n")
+        f.write(f"Use GPU: {args.use_gpu}\n")
 
     # Claude's fix on hardcoded BERTopic engine
     # Reuse BERTopic's own representative-doc machinery - the same c-TF-IDF

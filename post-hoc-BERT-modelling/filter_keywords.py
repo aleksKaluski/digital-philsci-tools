@@ -25,7 +25,25 @@ os.chdir(find_repo_root())
 
 # words/forms to match (case-insensitive, whole-word)
 KEYWORDS = [
-    "direct perception"
+        "direct",
+        "directly",
+        "directness",
+        "indirect",
+        "indirectly",
+        "indirectness",
+        "immediate",
+        "immediately",
+        "immediacy",
+        "unmediated",
+        "mediated",
+        "mediation",
+        "mediating",
+        "intermediary",
+        "intermediaries",
+        "non-inferential",
+        "inferentially",
+
+
 ]
 
 PATTERN = re.compile(
@@ -57,8 +75,8 @@ if __name__ == "__main__":
 
     filter_json(sys.argv[1], sys.argv[2])
 
-"""
+r"""
 Use-case:
- python filter_keywords.py files/operatonal_files/final_dp/results_with_text.json files/operatonal_files/final_dp/results_with_text_dp.json
+ python filter_keywords.py files\22_08_analysis\results\results_with_text_09_09.json files\22_08_analysis\results\filtered\results_with_text_12_09_dp.json
 
 """

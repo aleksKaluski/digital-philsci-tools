@@ -106,7 +106,7 @@ def main():
 
     for file_path in folder_path.iterdir():
         # iterate through files
-        if file_path.is_file():
+        if file_path.is_file() and file_path.suffix == '.json':
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
